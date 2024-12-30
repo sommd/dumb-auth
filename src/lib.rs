@@ -6,10 +6,19 @@ use axum::{
     Router,
 };
 
-use crate::{auth, config::Config, login, sessions::Sessions};
+use crate::{config::Config, sessions::Sessions};
+
+mod auth;
+mod basic;
+mod bearer;
+pub mod config;
+mod cookie;
+mod login;
+mod password;
+mod sessions;
 
 #[derive(Clone)]
-pub struct AppState {
+pub(crate) struct AppState {
     config: Config,
     sessions: Arc<Sessions>,
 }
@@ -26,7 +35,7 @@ impl FromRef<AppState> for Arc<Sessions> {
     }
 }
 
-pub fn create(config: Config) -> Router {
+pub fn create_app(config: Config) -> Router {
     let sessions = Arc::new(Sessions::new(config.session_expiry));
 
     Router::new()
