@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Login</title>
+
+    <style>
+      html {
+        height: 100%;
+      }
+
+      body {
+        display: grid;
+        min-height: 100%;
+        font-family: system-ui, sans-serif;
+        color: #f0f0f0;
+        background-color: #0f0f0f;
+      }
+
+      form {
+        display: grid;
+        gap: 4px;
+        margin: auto;
+      }
+
+      #error {
+        color: #f07070;
+      }
+    </style>
+  </head>
+  <body>
+    <form>
+      <input type="password" name="password" required placeholder="Password" />
+      <br />
+      <input type="submit" value="Login" />
+      <span id="error"></span>
+    </form>
+
+    <script type="module">
+      // @ts-check
+
+      const form = /** @type {HTMLFormElement} */ (
+        document.querySelector("form")
+      );
+      const error = /** @type {HTMLSpanElement} */ (
+        document.querySelector("#error")
+      );
+
+      function handleSubmit() {
+        fetch(window.location.href, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(
+            Object.fromEntries(new FormData(form).entries())
+          ),
+        }).then(
+          (r) => {
+            if (r.status === 200) {
+              handleSuccess();
+            } else {
+              showError("Invalid password");
+              form.reset();
+            }
+          },
+          (e) => showError(String(e))
+        );
+      }
+
+      function handleSuccess() {
+        showError("");
+
+        const query = new URLSearchParams(window.location.search);
+        const redirectTo = query.get("redirect_to") || "/";
+        window.location.assign(redirectTo);
+      }
+
+      /**
+       * @param {string} e
+       */
+      function showError(e) {
+        error.innerText = e;
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        handleSubmit();
+      });
+    </script>
+  </body>
+</html>

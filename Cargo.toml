@@ -1,0 +1,22 @@
+[package]
+name = "dumb-auth"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7.9", default-features = false, features = ["http1", "json", "tokio"] }
+axum-extra = { version = "0.9.6", default-features = false, features = ["cookie", "typed-header"] }
+clap = { version = "4.5.23", features = ["derive", "env"] }
+constant_time_eq = "0.3.1"
+duration-str = { version = "0.12.0", default-features = false, features = ["serde", "time"] }
+rand = "0.8.5"
+serde = { version = "1.0.216", features = ["derive"] }
+serde_urlencoded = "0.7.1"
+time = "0.3.37"
+tokio = { version = "1.42.0", features = ["rt", "macros"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
