@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::http::HeaderMap;
-use axum::response::{Redirect, Response};
+use axum::http::{header, HeaderMap};
+use axum::response::Response;
 use axum::{http::StatusCode, response::IntoResponse};
 
 use crate::config::Config;
@@ -47,7 +47,11 @@ pub async fn handle_auth_request(
             let query = serde_urlencoded::to_string([("redirect_to", original_uri)])
                 .expect("Unable to serialize query string");
 
-            Ok(Redirect::to(&format!("/login?{}", query)).into_response())
+            Ok((
+                StatusCode::UNAUTHORIZED,
+                [(header::LOCATION, format!("/login?{}", query))],
+            )
+                .into_response())
         }
         AuthResult::Valid => Ok(StatusCode::OK.into_response()),
     }
