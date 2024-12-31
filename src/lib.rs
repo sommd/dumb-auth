@@ -6,6 +6,7 @@ use axum::{
     Router,
 };
 
+pub use crate::login::LoginForm;
 use crate::{config::Config, sessions::Sessions};
 
 mod auth;

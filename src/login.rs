@@ -7,7 +7,7 @@ use axum::{
     Json,
 };
 use axum_extra::extract::CookieJar;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{config::Config, cookie, password, sessions::Sessions};
 
@@ -17,9 +17,9 @@ pub async fn handle_get_login() -> Response {
     Html(INDEX_HTML).into_response()
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct LoginForm {
-    password: String,
+    pub password: String,
 }
 
 pub async fn handle_post_login(

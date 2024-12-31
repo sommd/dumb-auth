@@ -1,12 +1,16 @@
 use std::{
-    fmt::{self, Debug},
-    net::{Ipv4Addr, SocketAddr},
+    fmt,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
 
 use clap::Parser;
 use duration_str::HumanFormat;
 use time::Duration;
+
+const DEFAULT_BIND_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 3862);
+const DEFAULT_SESSION_COOKIE_NAME: &str = "dumb-auth-session";
+const DEFAULT_SESSION_EXPIRY: SessionExpiry = SessionExpiry::Duration(Duration::weeks(4));
 
 #[derive(Clone, Debug, Parser)]
 pub struct Config {
@@ -17,7 +21,7 @@ pub struct Config {
         long,
         env = "DUMB_AUTH_BIND_ADDR",
         hide_env = true,
-        default_value_t = (Ipv4Addr::UNSPECIFIED, 3862).into()
+        default_value_t = DEFAULT_BIND_ADDR
     )]
     pub bind_addr: SocketAddr,
 
@@ -38,7 +42,7 @@ pub struct Config {
         long,
         env = "DUMB_AUTH_SESSION_COOKIE_NAME",
         hide_env = true,
-        default_value = "dumb-auth-session"
+        default_value = DEFAULT_SESSION_COOKIE_NAME
     )]
     pub session_cookie_name: String,
     /// The domain to set the session cookie on.
@@ -58,7 +62,7 @@ pub struct Config {
         long,
         env = "DUMB_AUTH_SESSION_EXPIRY",
         hide_env = true,
-        default_value_t = SessionExpiry::Duration(Duration::weeks(4))
+        default_value_t = DEFAULT_SESSION_EXPIRY
     )]
     /// How long after creation a session should expire.
     ///
@@ -72,6 +76,20 @@ pub struct Config {
     ///
     /// A duration: A fixed duration, e.g. `7d`, `1d12h`, `1week 2days 3hours 4minutes`, etc.
     pub session_expiry: SessionExpiry,
+}
+
+impl Config {
+    pub fn new(password: &str) -> Self {
+        Self {
+            bind_addr: DEFAULT_BIND_ADDR,
+            password: password.into(),
+            allow_basic: Default::default(),
+            allow_bearer: Default::default(),
+            session_cookie_name: DEFAULT_SESSION_COOKIE_NAME.into(),
+            session_cookie_domain: Default::default(),
+            session_expiry: DEFAULT_SESSION_EXPIRY,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
