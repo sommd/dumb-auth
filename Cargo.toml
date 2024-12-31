@@ -1,7 +1,11 @@
 [package]
 name = "dumb-auth"
 version = "0.1.0"
+authors = ["Dana Sommerich"]
 edition = "2021"
+description = "A stupid-simple, super-lightweight, single-user auth server."
+repository = "https://github.com/sommd/dumb-auth"
+license = "AGPL-3.0-only"
 
 [dependencies]
 axum = { version = "0.7.9", default-features = false, features = ["http1", "json", "tokio"] }

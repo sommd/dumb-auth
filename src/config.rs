@@ -13,6 +13,7 @@ const DEFAULT_SESSION_COOKIE_NAME: &str = "dumb-auth-session";
 const DEFAULT_SESSION_EXPIRY: SessionExpiry = SessionExpiry::Duration(Duration::weeks(4));
 
 #[derive(Clone, Debug, Parser)]
+#[clap(about, author, version)]
 pub struct Config {
     // General config
     /// The IP address and port to handle requests on.
