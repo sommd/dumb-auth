@@ -6,8 +6,9 @@ use axum::{
     Router,
 };
 
+use crate::{config::AuthConfig, sessions::Sessions};
+
 pub use crate::login::LoginForm;
-use crate::{config::Config, sessions::Sessions};
 
 mod auth;
 mod basic;
@@ -20,13 +21,13 @@ mod sessions;
 
 #[derive(Clone)]
 pub(crate) struct AppState {
-    config: Config,
+    auth_config: AuthConfig,
     sessions: Arc<Sessions>,
 }
 
-impl FromRef<AppState> for Config {
+impl FromRef<AppState> for AuthConfig {
     fn from_ref(input: &AppState) -> Self {
-        input.config.clone()
+        input.auth_config.clone()
     }
 }
 
@@ -36,8 +37,8 @@ impl FromRef<AppState> for Arc<Sessions> {
     }
 }
 
-pub fn create_app(config: Config) -> Router {
-    let sessions = Arc::new(Sessions::new(config.session_expiry));
+pub fn create_app(auth_config: AuthConfig) -> Router {
+    let sessions = Arc::new(Sessions::new(auth_config.session_expiry));
 
     Router::new()
         .route("/auth", any(auth::handle_auth_request))
@@ -45,5 +46,8 @@ pub fn create_app(config: Config) -> Router {
             "/login",
             get(login::handle_get_login).post(login::handle_post_login),
         )
-        .with_state(AppState { config, sessions })
+        .with_state(AppState {
+            auth_config,
+            sessions,
+        })
 }

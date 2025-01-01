@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::http::{header, HeaderMap};
-use axum::response::Response;
-use axum::{http::StatusCode, response::IntoResponse};
+use axum::{
+    extract::State,
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+};
 
-use crate::config::Config;
-use crate::sessions::Sessions;
-use crate::{basic, bearer, cookie};
+use crate::{basic, bearer, config::AuthConfig, cookie, sessions::Sessions};
 
 pub enum AuthResult {
     Missing,
@@ -16,7 +15,7 @@ pub enum AuthResult {
 }
 
 pub async fn handle_auth_request(
-    State(config): State<Config>,
+    State(auth_config): State<AuthConfig>,
     State(sessions): State<Arc<Sessions>>,
     headers: HeaderMap,
 ) -> axum::response::Result<Response> {
@@ -26,34 +25,38 @@ pub async fn handle_auth_request(
         .to_str()
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    if config.allow_basic {
-        match basic::validate_basic_auth(&config, &headers) {
+    if auth_config.allow_basic {
+        match basic::validate_basic_auth(&auth_config, &headers) {
             AuthResult::Missing => {}
             AuthResult::Invalid => return Ok(StatusCode::UNAUTHORIZED.into_response()),
             AuthResult::Valid => return Ok(StatusCode::OK.into_response()),
         }
     }
 
-    if config.allow_bearer {
-        match bearer::validate_bearer_token(&config, &headers) {
+    if auth_config.allow_bearer {
+        match bearer::validate_bearer_token(&auth_config, &headers) {
             AuthResult::Missing => {}
             AuthResult::Invalid => return Ok(StatusCode::UNAUTHORIZED.into_response()),
             AuthResult::Valid => return Ok(StatusCode::OK.into_response()),
         }
     }
 
-    match cookie::validate_session(&config, &sessions, &headers).await {
-        AuthResult::Missing | AuthResult::Invalid => {
-            let query = form_urlencoded::Serializer::new(String::new())
-                .append_pair("redirect_to", original_uri)
-                .finish();
+    if auth_config.allow_session {
+        match cookie::validate_session(&auth_config, &sessions, &headers).await {
+            AuthResult::Missing | AuthResult::Invalid => {
+                let query = form_urlencoded::Serializer::new(String::new())
+                    .append_pair("redirect_to", original_uri)
+                    .finish();
 
-            Ok((
-                StatusCode::UNAUTHORIZED,
-                [(header::LOCATION, format!("/login?{}", query))],
-            )
-                .into_response())
+                return Ok((
+                    StatusCode::UNAUTHORIZED,
+                    [(header::LOCATION, format!("/login?{}", query))],
+                )
+                    .into_response());
+            }
+            AuthResult::Valid => return Ok(StatusCode::OK.into_response()),
         }
-        AuthResult::Valid => Ok(StatusCode::OK.into_response()),
     }
+
+    Ok(StatusCode::UNAUTHORIZED.into_response())
 }
