@@ -44,8 +44,9 @@ pub async fn handle_auth_request(
 
     match cookie::validate_session(&config, &sessions, &headers).await {
         AuthResult::Missing | AuthResult::Invalid => {
-            let query = serde_urlencoded::to_string([("redirect_to", original_uri)])
-                .expect("Unable to serialize query string");
+            let query = form_urlencoded::Serializer::new(String::new())
+                .append_pair("redirect_to", original_uri)
+                .finish();
 
             Ok((
                 StatusCode::UNAUTHORIZED,
