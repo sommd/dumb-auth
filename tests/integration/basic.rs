@@ -1,6 +1,6 @@
-use reqwest::StatusCode;
+use reqwest::{Method, StatusCode};
 
-use super::*;
+use super::{Sut, ORIGINAL_URI, PASSWORD};
 
 async fn sut() -> Sut {
     Sut::with(|c| {

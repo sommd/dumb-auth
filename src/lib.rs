@@ -6,14 +6,15 @@ use axum::{
     Router,
 };
 
-use crate::{config::AuthConfig, sessions::Sessions};
+use crate::sessions::Sessions;
 
+pub use crate::config::*;
 pub use crate::login::LoginForm;
 
 mod auth;
 mod basic;
 mod bearer;
-pub mod config;
+mod config;
 mod cookie;
 mod login;
 mod password;
@@ -37,7 +38,7 @@ impl FromRef<AppState> for Arc<Sessions> {
     }
 }
 
-pub fn create_app(auth_config: AuthConfig) -> Router {
+pub fn app(auth_config: AuthConfig) -> Router {
     let sessions = Arc::new(Sessions::new(auth_config.session_expiry));
 
     Router::new()

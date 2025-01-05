@@ -1,7 +1,7 @@
 use dumb_auth::LoginForm;
 use reqwest::{header, Method, StatusCode};
 
-use super::*;
+use super::{Sut, ORIGINAL_URI, ORIGINAL_URI_ENCODED, PASSWORD};
 
 const SESSION_COOKIE_NAME: &str = "dumb-auth-session";
 
@@ -18,7 +18,7 @@ async fn redirects_to_login_when_no_session() {
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
         res.headers().get(header::LOCATION).unwrap(),
-        &format!("/login?redirect_to={}", REDIRECT_TO)
+        &format!("/login?redirect_to={}", ORIGINAL_URI_ENCODED)
     );
 }
 
@@ -37,7 +37,7 @@ async fn redirects_to_login_when_session_invalid() {
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
         res.headers().get(header::LOCATION).unwrap(),
-        &format!("/login?redirect_to={}", REDIRECT_TO)
+        &format!("/login?redirect_to={}", ORIGINAL_URI_ENCODED)
     );
 }
 

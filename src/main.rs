@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use clap::{ArgAction, Parser};
 use tokio::net::TcpListener;
 
-use dumb_auth::config::{AuthConfig, SessionExpiry};
+use dumb_auth::{AuthConfig, SessionExpiry};
 
 #[derive(Debug, Parser)]
 #[command(about, author, version)]
@@ -102,7 +102,7 @@ impl From<Args> for AuthConfig {
 async fn main() {
     let args = Args::parse();
     let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
-    let app = dumb_auth::create_app(args.into());
+    let app = dumb_auth::app(args.into());
     axum::serve(listener, app).await.unwrap();
 }
 

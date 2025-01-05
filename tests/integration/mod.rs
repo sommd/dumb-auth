@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dumb_auth::config::AuthConfig;
+use dumb_auth::AuthConfig;
 use reqwest::{cookie, Client, Method, RequestBuilder, Url};
 use tokio::{net::TcpListener, task::JoinHandle};
 
@@ -10,7 +10,7 @@ mod interactive;
 
 pub const PASSWORD: &str = "hunter2";
 pub const ORIGINAL_URI: &str = "/original?uri&query=param";
-pub const REDIRECT_TO: &str = "%2Foriginal%3Furi%26query%3Dparam";
+pub const ORIGINAL_URI_ENCODED: &str = "%2Foriginal%3Furi%26query%3Dparam";
 
 pub struct Sut {
     base_url: Url,
@@ -44,7 +44,7 @@ impl Sut {
             .unwrap();
 
         let handle = tokio::spawn(async {
-            axum::serve(listener, dumb_auth::create_app(auth_config))
+            axum::serve(listener, dumb_auth::app(auth_config))
                 .await
                 .unwrap();
         });
