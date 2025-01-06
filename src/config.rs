@@ -3,9 +3,11 @@ use std::{fmt, str::FromStr};
 use duration_str::HumanFormat;
 use time::Duration;
 
+use crate::password::Password;
+
 #[derive(Clone, Debug)]
 pub struct AuthConfig {
-    pub password: String,
+    pub password: Password,
     pub allow_basic: bool,
     pub allow_bearer: bool,
     pub allow_session: bool,
@@ -20,7 +22,7 @@ impl AuthConfig {
 
     pub fn new(password: &str) -> Self {
         Self {
-            password: password.into(),
+            password: Password::Plain(password.into()),
             allow_basic: false,
             allow_bearer: false,
             allow_session: true,

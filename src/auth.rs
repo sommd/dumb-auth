@@ -6,7 +6,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::{basic, bearer, config::AuthConfig, cookie, sessions::Sessions};
+use crate::{
+    basic, bearer, config::AuthConfig, cookie, password::PasswordChecker, sessions::Sessions,
+};
 
 pub enum AuthResult {
     Missing,
@@ -16,6 +18,7 @@ pub enum AuthResult {
 
 pub async fn handle_auth_request(
     State(auth_config): State<AuthConfig>,
+    State(password_checker): State<Arc<PasswordChecker>>,
     State(sessions): State<Arc<Sessions>>,
     headers: HeaderMap,
 ) -> axum::response::Result<Response> {
@@ -26,7 +29,7 @@ pub async fn handle_auth_request(
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
     if auth_config.allow_basic {
-        match basic::validate_basic_auth(&auth_config, &headers) {
+        match basic::validate_basic_auth(&auth_config.password, &password_checker, &headers).await {
             AuthResult::Missing => {}
             AuthResult::Invalid => return Ok(StatusCode::UNAUTHORIZED.into_response()),
             AuthResult::Valid => return Ok(StatusCode::OK.into_response()),
@@ -34,7 +37,9 @@ pub async fn handle_auth_request(
     }
 
     if auth_config.allow_bearer {
-        match bearer::validate_bearer_token(&auth_config, &headers) {
+        match bearer::validate_bearer_token(&auth_config.password, &password_checker, &headers)
+            .await
+        {
             AuthResult::Missing => {}
             AuthResult::Invalid => return Ok(StatusCode::UNAUTHORIZED.into_response()),
             AuthResult::Valid => return Ok(StatusCode::OK.into_response()),

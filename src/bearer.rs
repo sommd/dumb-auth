@@ -1,11 +1,21 @@
 use axum::http::HeaderMap;
 use axum_extra::headers::{authorization::Bearer, Authorization, HeaderMapExt};
 
-use crate::{auth::AuthResult, config::AuthConfig, password};
+use crate::{
+    auth::AuthResult,
+    password::{Password, PasswordChecker},
+};
 
-pub fn validate_bearer_token(auth_config: &AuthConfig, headers: &HeaderMap) -> AuthResult {
+pub async fn validate_bearer_token(
+    password: &Password,
+    password_checker: &PasswordChecker,
+    headers: &HeaderMap,
+) -> AuthResult {
     if let Some(header) = headers.typed_get::<Authorization<Bearer>>() {
-        if password::check_password(auth_config, header.token()) {
+        if password_checker
+            .check_password(header.token(), password)
+            .await
+        {
             AuthResult::Valid
         } else {
             AuthResult::Invalid

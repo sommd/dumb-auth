@@ -87,7 +87,7 @@ pub struct Args {
 impl From<Args> for AuthConfig {
     fn from(args: Args) -> Self {
         Self {
-            password: args.password,
+            password: dumb_auth::Password::Plain(args.password),
             allow_basic: args.allow_basic,
             allow_bearer: args.allow_bearer,
             allow_session: args.allow_session,

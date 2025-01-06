@@ -9,7 +9,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
-use crate::{config::AuthConfig, cookie, password, sessions::Sessions};
+use crate::{config::AuthConfig, cookie, password::PasswordChecker, sessions::Sessions};
 
 static INDEX_HTML: &str = include_str!("../frontend/index.html");
 
@@ -24,11 +24,15 @@ pub struct LoginForm {
 
 pub async fn handle_post_login(
     State(auth_config): State<AuthConfig>,
+    State(password_checker): State<Arc<PasswordChecker>>,
     State(sessions): State<Arc<Sessions>>,
     cookie_jar: CookieJar,
     Json(form): Json<LoginForm>,
 ) -> Response {
-    if !password::check_password(&auth_config, &form.password) {
+    if !password_checker
+        .check_password(&form.password, &auth_config.password)
+        .await
+    {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 

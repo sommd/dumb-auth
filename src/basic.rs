@@ -1,11 +1,18 @@
 use axum::http::HeaderMap;
 use axum_extra::headers::{authorization::Basic, Authorization, HeaderMapExt};
 
-use crate::{auth::AuthResult, config::AuthConfig, password};
+use crate::{
+    auth::AuthResult,
+    password::{Password, PasswordChecker},
+};
 
-pub fn validate_basic_auth(auth_config: &AuthConfig, headers: &HeaderMap) -> AuthResult {
+pub async fn validate_basic_auth(
+    password: &Password,
+    password_checker: &PasswordChecker,
+    headers: &HeaderMap,
+) -> AuthResult {
     if let Some(header) = headers.typed_get::<Authorization<Basic>>() {
-        if password::check_password(auth_config, header.password()) {
+        if password_checker.check_password(header.password(), password).await {
             AuthResult::Valid
         } else {
             AuthResult::Invalid
