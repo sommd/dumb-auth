@@ -12,7 +12,10 @@ pub async fn validate_basic_auth(
     headers: &HeaderMap,
 ) -> AuthResult {
     if let Some(header) = headers.typed_get::<Authorization<Basic>>() {
-        if password_checker.check_password(header.password(), password).await {
+        if password_checker
+            .check_password(header.password(), password)
+            .await
+        {
             AuthResult::Valid
         } else {
             AuthResult::Invalid
