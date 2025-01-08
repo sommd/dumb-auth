@@ -1,7 +1,15 @@
-use std::{fs::File, io::Write, net::SocketAddr, path::PathBuf};
+use std::{
+    fs::{self, File},
+    io::{self, Write},
+    net::SocketAddr,
+    path::PathBuf,
+    process,
+};
 
 use clap::{ArgAction, Args, Parser, Subcommand};
-use tokio::net::TcpListener;
+use log::error;
+use password_hash::PasswordHashString;
+use tokio::{net::TcpListener, runtime};
 use zeroize::Zeroize;
 
 use dumb_auth::{AuthConfig, Password, SessionExpiry};
@@ -22,9 +30,9 @@ enum Cmd {
     Passwd(PasswdArgs),
 }
 
-#[derive(Debug, PartialEq, Args)]
+#[derive(Args, Debug, PartialEq)]
 struct RunArgs {
-    // General config
+    // General
     /// The IP address and port to handle requests on.
     #[arg(
         short,
@@ -35,10 +43,47 @@ struct RunArgs {
     )]
     pub bind_addr: SocketAddr,
 
-    // Auth config
-    /// The password required to login.
-    #[arg(short, long, env = "DUMB_AUTH_PASSWORD", hide_env = true)]
-    pub password: String,
+    // Password
+    /// The password (in plain text) used to authenticate.
+    #[arg(
+        long,
+        env = "DUMB_AUTH_PASSWORD",
+        hide_env = true,
+        group = "password_arg",
+        required = true
+    )]
+    pub password: Option<String>,
+    /// A file containing the password (in plain text) used to authenticate.
+    #[arg(
+        long,
+        env = "DUMB_AUTH_PASSWORD_FILE",
+        hide_env = true,
+        group = "password_arg",
+        required = true
+    )]
+    pub password_file: Option<PathBuf>,
+    /// The hash of the password used to authenticate. Use the 'passwd' subcommand to generate the
+    /// hash.
+    #[arg(
+        long,
+        env = "DUMB_AUTH_PASSWORD_HASH",
+        hide_env = true,
+        group = "password_arg",
+        required = true
+    )]
+    pub password_hash: Option<String>,
+    /// A file containing the hash of the password used to authenticate. Use the 'passwd' subcommand
+    /// to generate the hash.
+    #[arg(
+        long,
+        env = "DUMB_AUTH_PASSWORD_HASH_FILE",
+        hide_env = true,
+        group = "password_arg",
+        required = true
+    )]
+    pub password_hash_file: Option<PathBuf>,
+
+    // Methods
     /// Support HTTP Basic authentication.
     #[arg(long, env = "DUMB_AUTH_ALLOW_BASIC", hide_env = true)]
     pub allow_basic: bool,
@@ -58,7 +103,7 @@ struct RunArgs {
     )]
     pub allow_session: bool,
 
-    // Session config
+    // Session
     /// The name of the session cookie to use.
     #[arg(
         long,
@@ -100,31 +145,98 @@ struct RunArgs {
     pub session_expiry: SessionExpiry,
 }
 
+impl RunArgs {
+    pub fn password(&self) -> Result<Password, PasswordError> {
+        let password = if let Some(plain) = &self.password {
+            Password::Plain(plain.into())
+        } else if let Some(path) = &self.password_file {
+            Password::Plain(Self::read_file(path)?)
+        } else if let Some(hash) = &self.password_hash {
+            Password::Hash(Self::parse_hash(hash)?)
+        } else if let Some(path) = &self.password_hash_file {
+            Password::Hash(Self::parse_hash(&Self::read_file(path)?)?)
+        } else {
+            unreachable!()
+        };
+
+        if let Password::Plain(plain) = &password {
+            if plain.is_empty() {
+                return Err(PasswordError::Empty);
+            }
+        }
+
+        Ok(password)
+    }
+
+    fn read_file(path: &PathBuf) -> Result<String, PasswordError> {
+        let mut string = fs::read_to_string(path)?;
+
+        // Trim final \n or \r\n
+        if string.ends_with('\n') {
+            string.pop();
+            if string.ends_with('\r') {
+                string.pop();
+            }
+        }
+
+        Ok(string)
+    }
+
+    fn parse_hash(hash: &str) -> Result<PasswordHashString, PasswordError> {
+        Ok(PasswordHashString::new(hash)?)
+    }
+}
+
+enum PasswordError {
+    Io(io::Error),
+    Hash(password_hash::Error),
+    Empty,
+}
+
+impl From<io::Error> for PasswordError {
+    fn from(value: io::Error) -> Self {
+        Self::Io(value)
+    }
+}
+
+impl From<password_hash::Error> for PasswordError {
+    fn from(value: password_hash::Error) -> Self {
+        Self::Hash(value)
+    }
+}
+
 /// Hash a password, to be used with --password-hash[-file].
 ///
 /// Password hashing follows the recommended OWASP password guidelines as of January 2025.
-#[derive(Debug, PartialEq, Args)]
+#[derive(Args, Debug, PartialEq)]
 struct PasswdArgs {
     /// File to output password to instead of stdout, or "-" for stdout. File will be overwritten.
-    #[arg(hide_default_value = true, default_value = "-")]
+    #[arg(default_value = "-", hide_default_value = true)]
     output: PathBuf,
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
-    let cli = Cli::parse();
+fn main() {
+    env_logger::init();
 
+    let cli = Cli::parse();
     match cli.cmd {
-        None => run(cli.args.unwrap()).await,
+        None => run(cli.args.unwrap()),
         Some(Cmd::Passwd(args)) => passwd(args),
     };
 }
 
-async fn run(args: RunArgs) {
-    let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
+fn run(args: RunArgs) {
+    let password = args.password().unwrap_or_else(|e| {
+        match e {
+            PasswordError::Io(e) => error!("Error reading password/hash file: {}", e),
+            PasswordError::Hash(e) => error!("Error parsing password hash: {}", e),
+            PasswordError::Empty => error!("Password cannot be empty"),
+        };
+        process::exit(1);
+    });
 
     let app = dumb_auth::app(AuthConfig {
-        password: Password::Plain(args.password),
+        password,
         allow_basic: args.allow_basic,
         allow_bearer: args.allow_bearer,
         allow_session: args.allow_session,
@@ -133,18 +245,36 @@ async fn run(args: RunArgs) {
         session_expiry: args.session_expiry,
     });
 
-    axum::serve(listener, app).await.unwrap();
+    runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
+            axum::serve(listener, app).await.unwrap();
+        });
 }
 
 fn passwd(args: PasswdArgs) {
-    let mut plain = rpassword::prompt_password("Enter password: ").unwrap();
-    let hash = dumb_auth::hash_password(&plain).unwrap();
+    let mut plain = rpassword::prompt_password("Enter password: ").unwrap_or_else(|e| {
+        error!("Error reading password: {}", e);
+        process::exit(1);
+    });
+
+    let hash = dumb_auth::hash_password(&plain).unwrap_or_else(|e| {
+        error!("Error hashing password: {}", e);
+        process::exit(1);
+    });
+
     plain.zeroize();
 
     if args.output.to_str() == Some("-") {
         println!("{}", &hash);
     } else {
-        writeln!(&mut File::create(args.output).unwrap(), "{}", &hash).unwrap();
+        if let Err(e) = writeln!(&mut File::create(args.output).unwrap(), "{}", &hash) {
+            error!("Error writing to output file: {}", e);
+            process::exit(1);
+        }
     }
 }
 
@@ -156,6 +286,8 @@ mod tests {
 
     use super::*;
 
+    const PWARG: &str = "--password=hunter2";
+
     fn sut(args: &[&str]) -> Result<Cli, String> {
         Cli::try_parse_from(iter::once(&"dumb-auth").chain(args)).map_err(|e| e.to_string())
     }
@@ -166,11 +298,60 @@ mod tests {
     }
 
     #[test]
+    fn test_password() {
+        // Requires a password arg
+        assert!(sut(&[])
+            .unwrap_err()
+            .contains("required arguments were not provided"));
+
+        // Accepts a single password arg
+        assert_eq!(
+            sut(&["--password=hunter2"])
+                .unwrap()
+                .args
+                .unwrap()
+                .password
+                .as_deref(),
+            Some("hunter2")
+        );
+        assert_eq!(
+            sut(&["--password-file=password.txt"])
+                .unwrap()
+                .args
+                .unwrap()
+                .password_file,
+            Some(PathBuf::from("password.txt"))
+        );
+        assert_eq!(
+            sut(&["--password-hash=$1$n8iaq2sR$S2FSu61ixElrdPp/TUxtM0"])
+                .unwrap()
+                .args
+                .unwrap()
+                .password_hash
+                .as_deref(),
+            Some("$1$n8iaq2sR$S2FSu61ixElrdPp/TUxtM0")
+        );
+        assert_eq!(
+            sut(&["--password-hash-file=password-hash.txt"])
+                .unwrap()
+                .args
+                .unwrap()
+                .password_hash_file,
+            Some(PathBuf::from("password-hash.txt"))
+        );
+
+        // Disallows multiple password args
+        assert!(sut(&["--password=hunter2", "--password-file=password.txt"])
+            .unwrap_err()
+            .contains("cannot be used with '--password"),);
+    }
+
+    #[test]
     fn test_allow_session() {
-        // Default
-        assert_eq!(sut(&["-p=fake"]).unwrap().args.unwrap().allow_session, true);
+        // Defaults to true
+        assert_eq!(sut(&[PWARG]).unwrap().args.unwrap().allow_session, true);
         assert_eq!(
-            sut(&["-p=fake", "--allow-session"])
+            sut(&[PWARG, "--allow-session"])
                 .unwrap()
                 .args
                 .unwrap()
@@ -178,9 +359,9 @@ mod tests {
             true
         );
 
-        // Explicit
+        // Parses explicit value
         assert_eq!(
-            sut(&["-p=fake", "--allow-session=true"])
+            sut(&[PWARG, "--allow-session=true"])
                 .unwrap()
                 .args
                 .unwrap()
@@ -188,7 +369,7 @@ mod tests {
             true
         );
         assert_eq!(
-            sut(&["-p=fake", "--allow-session=false"])
+            sut(&[PWARG, "--allow-session=false"])
                 .unwrap()
                 .args
                 .unwrap()
@@ -196,23 +377,23 @@ mod tests {
             false
         );
 
-        // Env
+        // Parses value from env
         env::set_var("DUMB_AUTH_ALLOW_SESSION", "false");
-        assert_eq!(
-            sut(&["-p=fake"]).unwrap().args.unwrap().allow_session,
-            false
-        );
+        assert_eq!(sut(&[PWARG]).unwrap().args.unwrap().allow_session, false);
         env::set_var("DUMB_AUTH_ALLOW_SESSION", "true");
-        assert_eq!(sut(&["-p=fake"]).unwrap().args.unwrap().allow_session, true);
+        assert_eq!(sut(&[PWARG]).unwrap().args.unwrap().allow_session, true);
         env::remove_var("DUMB_AUTH_ALLOW_SESSION");
     }
 
     #[test]
     fn test_passwd() {
+        // Does not require run args
         assert_eq!(
             sut(&["passwd"]).unwrap().cmd.unwrap(),
             Cmd::Passwd(PasswdArgs { output: "-".into() })
         );
+
+        // Accepts outfile
         assert_eq!(
             sut(&["passwd", "outfile"]).unwrap().cmd.unwrap(),
             Cmd::Passwd(PasswdArgs {
@@ -220,7 +401,8 @@ mod tests {
             })
         );
 
-        assert!(sut(&["-p=fake", "passwd"])
+        // Disallows run args
+        assert!(sut(&[PWARG, "passwd"])
             .unwrap_err()
             .contains("subcommand 'passwd' cannot be used with '--password"));
     }

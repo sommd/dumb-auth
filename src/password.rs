@@ -6,7 +6,7 @@ use rand::thread_rng;
 use subtle::ConstantTimeEq;
 use tokio::sync::RwLock;
 
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Password {
     Plain(String),
     Hash(PasswordHashString),
