@@ -1,13 +1,29 @@
-use std::net::SocketAddr;
+use std::{fs::File, io::Write, net::SocketAddr, path::PathBuf};
 
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Args, Parser, Subcommand};
 use tokio::net::TcpListener;
+use zeroize::Zeroize;
 
-use dumb_auth::{AuthConfig, SessionExpiry};
+use dumb_auth::{AuthConfig, Password, SessionExpiry};
 
-#[derive(Debug, Parser)]
-#[command(about, author, version)]
-pub struct Args {
+#[derive(Debug, PartialEq, Parser)]
+#[command(about, author, version, args_conflicts_with_subcommands = true)]
+struct Cli {
+    #[command(flatten)]
+    args: Option<RunArgs>,
+
+    #[command(subcommand)]
+    cmd: Option<Cmd>,
+}
+
+#[derive(Debug, PartialEq, Subcommand)]
+enum Cmd {
+    // Run(RunArgs),
+    Passwd(PasswdArgs),
+}
+
+#[derive(Debug, PartialEq, Args)]
+struct RunArgs {
     // General config
     /// The IP address and port to handle requests on.
     #[arg(
@@ -84,82 +100,128 @@ pub struct Args {
     pub session_expiry: SessionExpiry,
 }
 
-impl From<Args> for AuthConfig {
-    fn from(args: Args) -> Self {
-        Self {
-            password: dumb_auth::Password::Plain(args.password),
-            allow_basic: args.allow_basic,
-            allow_bearer: args.allow_bearer,
-            allow_session: args.allow_session,
-            session_cookie_name: args.session_cookie_name,
-            session_cookie_domain: args.session_cookie_domain,
-            session_expiry: args.session_expiry,
-        }
-    }
+/// Hash a password, to be used with --password-hash[-file].
+///
+/// Password hashing follows the recommended OWASP password guidelines as of January 2025.
+#[derive(Debug, PartialEq, Args)]
+struct PasswdArgs {
+    /// File to output password to instead of stdout, or "-" for stdout. File will be overwritten.
+    #[arg(hide_default_value = true, default_value = "-")]
+    output: PathBuf,
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let args = Args::parse();
+    let cli = Cli::parse();
+
+    match cli.cmd {
+        None => run(cli.args.unwrap()).await,
+        Some(Cmd::Passwd(args)) => passwd(args),
+    };
+}
+
+async fn run(args: RunArgs) {
     let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
-    let app = dumb_auth::app(args.into());
+
+    let app = dumb_auth::app(AuthConfig {
+        password: Password::Plain(args.password),
+        allow_basic: args.allow_basic,
+        allow_bearer: args.allow_bearer,
+        allow_session: args.allow_session,
+        session_cookie_name: args.session_cookie_name,
+        session_cookie_domain: args.session_cookie_domain,
+        session_expiry: args.session_expiry,
+    });
+
     axum::serve(listener, app).await.unwrap();
+}
+
+fn passwd(args: PasswdArgs) {
+    let mut plain = rpassword::prompt_password("Enter password: ").unwrap();
+    let hash = dumb_auth::hash_password(&plain).unwrap();
+    plain.zeroize();
+
+    if args.output.to_str() == Some("-") {
+        println!("{}", &hash);
+    } else {
+        writeln!(&mut File::create(args.output).unwrap(), "{}", &hash).unwrap();
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{env, ffi::OsString, iter};
+    use std::{env, iter};
 
     use clap::CommandFactory;
 
     use super::*;
 
+    fn sut(args: &[&str]) -> Result<Cli, String> {
+        Cli::try_parse_from(iter::once(&"dumb-auth").chain(args)).map_err(|e| e.to_string())
+    }
+
     #[test]
     fn verify_args() {
-        Args::command().debug_assert();
+        Cli::command().debug_assert();
     }
 
     #[test]
     fn test_allow_session() {
         // Default
-        assert_eq!(args_min(iter::empty::<&str>()).unwrap().allow_session, true);
-        assert_eq!(args_min(["--allow-session"]).unwrap().allow_session, true);
-
-        // true
+        assert_eq!(sut(&["-p=fake"]).unwrap().args.unwrap().allow_session, true);
         assert_eq!(
-            args_min(["--allow-session=true"]).unwrap().allow_session,
+            sut(&["-p=fake", "--allow-session"])
+                .unwrap()
+                .args
+                .unwrap()
+                .allow_session,
             true
         );
 
-        // false
+        // Explicit
         assert_eq!(
-            args_min(["--allow-session=false"]).unwrap().allow_session,
+            sut(&["-p=fake", "--allow-session=true"])
+                .unwrap()
+                .args
+                .unwrap()
+                .allow_session,
+            true
+        );
+        assert_eq!(
+            sut(&["-p=fake", "--allow-session=false"])
+                .unwrap()
+                .args
+                .unwrap()
+                .allow_session,
             false
         );
 
-        // env
+        // Env
         env::set_var("DUMB_AUTH_ALLOW_SESSION", "false");
         assert_eq!(
-            args_min(iter::empty::<&str>()).unwrap().allow_session,
+            sut(&["-p=fake"]).unwrap().args.unwrap().allow_session,
             false
         );
         env::set_var("DUMB_AUTH_ALLOW_SESSION", "true");
-        assert_eq!(args_min(iter::empty::<&str>()).unwrap().allow_session, true);
+        assert_eq!(sut(&["-p=fake"]).unwrap().args.unwrap().allow_session, true);
+        env::remove_var("DUMB_AUTH_ALLOW_SESSION");
     }
 
-    fn args_min<I, T>(itr: I) -> Result<Args, String>
-    where
-        I: IntoIterator<Item = T>,
-        T: From<&'static str> + Into<OsString> + Clone,
-    {
-        args(iter::once("--password=hunter2".into()).chain(itr))
-    }
+    #[test]
+    fn test_passwd() {
+        assert_eq!(
+            sut(&["passwd"]).unwrap().cmd.unwrap(),
+            Cmd::Passwd(PasswdArgs { output: "-".into() })
+        );
+        assert_eq!(
+            sut(&["passwd", "outfile"]).unwrap().cmd.unwrap(),
+            Cmd::Passwd(PasswdArgs {
+                output: "outfile".into()
+            })
+        );
 
-    fn args<I, T>(itr: I) -> Result<Args, String>
-    where
-        I: IntoIterator<Item = T>,
-        T: From<&'static str> + Into<OsString> + Clone,
-    {
-        Args::try_parse_from(iter::once("dumb-auth".into()).chain(itr)).map_err(|e| e.to_string())
+        assert!(sut(&["-p=fake", "passwd"])
+            .unwrap_err()
+            .contains("subcommand 'passwd' cannot be used with '--password"));
     }
 }
