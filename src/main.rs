@@ -42,6 +42,29 @@ struct RunArgs {
         default_value = "0.0.0.0:3862"
     )]
     pub bind_addr: SocketAddr,
+    /// Number of worker threads to use. 0 to detect and use the number of CPU cores/threads (the
+    /// default).
+    #[arg(
+        short = 'T',
+        long,
+        env = "DUMB_AUTH_THREADS",
+        hide_env = true,
+        default_value_t = 0,
+        hide_default_value = true,
+        group = "threads_arg"
+    )]
+    pub threads: usize,
+    /// Use only a single thread with no workers.
+    ///
+    /// This should use much less memory and can still handle multiple requests concurrently, but
+    /// may not be quite as performant as using '--threads'.
+    #[arg(
+        long,
+        env = "DUMB_AUTH_SINGLE_THREAD",
+        hide_env = true,
+        group = "threads_arg"
+    )]
+    pub single_thread: bool,
 
     // Password
     /// The password (in plain text) used to authenticate.
@@ -245,14 +268,28 @@ fn run(args: RunArgs) {
         session_expiry: args.session_expiry,
     });
 
-    runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
-            axum::serve(listener, app).await.unwrap();
-        });
+    let rt = {
+        let mut builder = if args.single_thread {
+            runtime::Builder::new_current_thread()
+        } else {
+            runtime::Builder::new_multi_thread()
+        };
+
+        builder.enable_all();
+        if args.threads != 0 {
+            builder.worker_threads(args.threads);
+        }
+
+        builder.build().unwrap_or_else(|e| {
+            error!("Error creating runtime: {}", e);
+            process::exit(1);
+        })
+    };
+
+    rt.block_on(async {
+        let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
+        axum::serve(listener, app).await.unwrap();
+    });
 }
 
 fn passwd(args: PasswdArgs) {
@@ -271,10 +308,12 @@ fn passwd(args: PasswdArgs) {
     if args.output.to_str() == Some("-") {
         println!("{}", &hash);
     } else {
-        if let Err(e) = writeln!(&mut File::create(args.output).unwrap(), "{}", &hash) {
-            error!("Error writing to output file: {}", e);
-            process::exit(1);
-        }
+        File::create(args.output)
+            .and_then(|mut f| writeln!(f, "{}", hash))
+            .unwrap_or_else(|e| {
+                error!("Error writing to output file: {}", e);
+                process::exit(1);
+            });
     }
 }
 
@@ -295,6 +334,14 @@ mod tests {
     #[test]
     fn verify_args() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn test_threads() {
+        // Disallows both --threads and --single-thread
+        assert!(sut(&[PWARG, "--threads=2", "--single-thread"])
+            .unwrap_err()
+            .contains("cannot be used with '--single-thread"));
     }
 
     #[test]
