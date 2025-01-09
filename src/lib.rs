@@ -24,14 +24,20 @@ mod sessions;
 
 #[derive(Clone)]
 pub(crate) struct AppState {
-    auth_config: AuthConfig,
+    config: AppConfig,
     password_checker: Arc<PasswordChecker>,
     sessions: Arc<Sessions>,
 }
 
+impl FromRef<AppState> for AppConfig {
+    fn from_ref(input: &AppState) -> Self {
+        input.config.clone()
+    }
+}
+
 impl FromRef<AppState> for AuthConfig {
     fn from_ref(input: &AppState) -> Self {
-        input.auth_config.clone()
+        input.config.auth_config.clone()
     }
 }
 
@@ -47,18 +53,18 @@ impl FromRef<AppState> for Arc<Sessions> {
     }
 }
 
-pub fn app(auth_config: AuthConfig) -> Router {
+pub fn app(config: AppConfig) -> Router {
     let password_checker = Arc::new(PasswordChecker::default());
-    let sessions = Arc::new(Sessions::new(auth_config.session_expiry));
+    let sessions = Arc::new(Sessions::new(config.auth_config.session_expiry));
 
     Router::new()
-        .route("/auth", any(auth::handle_auth_request))
+        .route("/auth_request", any(auth::handle_auth_request))
         .route(
-            "/login",
+            &format!("{}/login", config.public_path),
             get(login::handle_get_login).post(login::handle_post_login),
         )
         .with_state(AppState {
-            auth_config,
+            config,
             password_checker,
             sessions,
         })

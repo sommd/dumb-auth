@@ -6,6 +6,23 @@ use time::Duration;
 use crate::password::Password;
 
 #[derive(Clone, Debug)]
+pub struct AppConfig {
+    pub public_path: String,
+    pub auth_config: AuthConfig,
+}
+
+impl AppConfig {
+    pub const DEFAULT_PUBLIC_PATH: &str = "/auth";
+
+    pub fn default(auth_config: AuthConfig) -> Self {
+        Self {
+            public_path: Self::DEFAULT_PUBLIC_PATH.into(),
+            auth_config,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct AuthConfig {
     pub password: Password,
     pub allow_basic: bool,
@@ -20,9 +37,9 @@ impl AuthConfig {
     pub const DEFAULT_SESSION_COOKIE_NAME: &'static str = "dumb-auth-session";
     pub const DEFAULT_SESSION_EXPIRY: SessionExpiry = SessionExpiry::Duration(Duration::weeks(4));
 
-    pub fn new(password: &str) -> Self {
+    pub fn default(password: Password) -> Self {
         Self {
-            password: Password::Plain(password.into()),
+            password,
             allow_basic: false,
             allow_bearer: false,
             allow_session: true,

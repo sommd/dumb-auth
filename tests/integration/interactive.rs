@@ -1,15 +1,13 @@
-use dumb_auth::LoginForm;
+use dumb_auth::{AuthConfig, LoginForm};
 use reqwest::{header, Method, StatusCode};
 
 use super::{Sut, ORIGINAL_URI, ORIGINAL_URI_ENCODED, PASSWORD};
-
-const SESSION_COOKIE_NAME: &str = "dumb-auth-session";
 
 #[tokio::test]
 async fn redirects_to_login_when_no_session() {
     let res = Sut::default()
         .await
-        .request(Method::GET, "/auth")
+        .request(Method::GET, "/auth_request")
         .header("X-Original-URI", ORIGINAL_URI)
         .send()
         .await
@@ -18,17 +16,17 @@ async fn redirects_to_login_when_no_session() {
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
         res.headers().get(header::LOCATION).unwrap(),
-        &format!("/login?redirect_to={}", ORIGINAL_URI_ENCODED)
+        &format!("/auth/login?redirect_to={}", ORIGINAL_URI_ENCODED)
     );
 }
 
 #[tokio::test]
 async fn redirects_to_login_when_session_invalid() {
     let sut = Sut::default().await;
-    sut.set_cookie(SESSION_COOKIE_NAME, "invalid");
+    sut.set_cookie(AuthConfig::DEFAULT_SESSION_COOKIE_NAME, "invalid");
 
     let res = sut
-        .request(Method::GET, "/auth")
+        .request(Method::GET, "/auth_request")
         .header("X-Original-URI", ORIGINAL_URI)
         .send()
         .await
@@ -37,7 +35,7 @@ async fn redirects_to_login_when_session_invalid() {
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(
         res.headers().get(header::LOCATION).unwrap(),
-        &format!("/login?redirect_to={}", ORIGINAL_URI_ENCODED)
+        &format!("/auth/login?redirect_to={}", ORIGINAL_URI_ENCODED)
     );
 }
 
@@ -45,7 +43,7 @@ async fn redirects_to_login_when_session_invalid() {
 async fn login_returns_401_with_incorrect_password() {
     let res = Sut::default()
         .await
-        .request(Method::POST, "/login")
+        .request(Method::POST, "/auth/login")
         .json(&LoginForm {
             password: "invalid".into(),
         })
@@ -62,7 +60,7 @@ async fn login_grants_session_with_correct_password() {
     let sut = Sut::default().await;
 
     let res = sut
-        .request(Method::POST, "/login")
+        .request(Method::POST, "/auth/login")
         .json(&LoginForm {
             password: PASSWORD.into(),
         })
@@ -73,11 +71,11 @@ async fn login_grants_session_with_correct_password() {
     assert_eq!(res.status(), StatusCode::OK);
     assert!(res
         .cookies()
-        .find(|c| c.name() == SESSION_COOKIE_NAME)
+        .find(|c| c.name() == AuthConfig::DEFAULT_SESSION_COOKIE_NAME)
         .is_some());
 
     let res = sut
-        .request(Method::GET, "/auth")
+        .request(Method::GET, "/auth_request")
         .header("X-Original-URI", ORIGINAL_URI)
         .send()
         .await

@@ -12,7 +12,7 @@ use password_hash::PasswordHashString;
 use tokio::{net::TcpListener, runtime};
 use zeroize::Zeroize;
 
-use dumb_auth::{AuthConfig, Password, SessionExpiry};
+use dumb_auth::{AppConfig, AuthConfig, Password, SessionExpiry};
 
 #[derive(Debug, PartialEq, Parser)]
 #[command(about, author, version, args_conflicts_with_subcommands = true)]
@@ -42,6 +42,15 @@ struct RunArgs {
         default_value = "0.0.0.0:3862"
     )]
     pub bind_addr: SocketAddr,
+    /// The base path for public routes. Must start with `/`.
+    #[arg(
+        long,
+        env = "DUMB_AUTH_PUBLIC_PATH",
+        hide_env = true,
+        value_parser = parse_base_path,
+        default_value = AppConfig::DEFAULT_PUBLIC_PATH
+    )]
+    pub public_path: String,
     /// Number of worker threads to use. 0 to detect and use the number of CPU cores/threads (the
     /// default).
     #[arg(
@@ -168,6 +177,26 @@ struct RunArgs {
     pub session_expiry: SessionExpiry,
 }
 
+fn parse_base_path(s: &str) -> Result<String, String> {
+    if s.is_empty() {
+        Err("base path must not be empty".into())
+    } else if !s.starts_with('/') {
+        Err("base path must start with '/'".into())
+    } else if s.len() > 1 && s.ends_with('/') {
+        Err("base path must not end with '/'".into())
+    } else if s.contains("//") {
+        Err("base path must not contain '//'".into())
+    } else if s.contains(".") {
+        Err("base path must not contain '.'".into())
+    } else if s.contains("{") {
+        Err("base path must not contain '{'".into())
+    } else if s.contains("}") {
+        Err("base path must not contain '}'".into())
+    } else {
+        Ok(s.into())
+    }
+}
+
 impl RunArgs {
     pub fn password(&self) -> Result<Password, PasswordError> {
         let password = if let Some(plain) = &self.password {
@@ -258,14 +287,17 @@ fn run(args: RunArgs) {
         process::exit(1);
     });
 
-    let app = dumb_auth::app(AuthConfig {
-        password,
-        allow_basic: args.allow_basic,
-        allow_bearer: args.allow_bearer,
-        allow_session: args.allow_session,
-        session_cookie_name: args.session_cookie_name,
-        session_cookie_domain: args.session_cookie_domain,
-        session_expiry: args.session_expiry,
+    let app = dumb_auth::app(dumb_auth::AppConfig {
+        public_path: args.public_path,
+        auth_config: AuthConfig {
+            password,
+            allow_basic: args.allow_basic,
+            allow_bearer: args.allow_bearer,
+            allow_session: args.allow_session,
+            session_cookie_name: args.session_cookie_name,
+            session_cookie_domain: args.session_cookie_domain,
+            session_expiry: args.session_expiry,
+        },
     });
 
     let rt = {

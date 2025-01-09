@@ -3,14 +3,13 @@ use std::{
     time::Duration,
 };
 
-use dumb_auth::LoginForm;
+use dumb_auth::{AuthConfig, LoginForm};
 use reqwest::{Client, StatusCode, Url};
 
 use common::PASSWORD;
 
 mod common;
 
-const SESSION_COOKIE_NAME: &str = "dumb-auth-session";
 const BASE_URI: &str = "http://127.0.0.1:8080";
 const TEST_URI: &str = "/index.html?some=param&another=param";
 
@@ -24,13 +23,14 @@ impl Sut {
     pub async fn new(args: &[&str]) -> Self {
         let base_url = Url::parse(BASE_URI).unwrap();
 
-        let dumb_auth = Command::new(env!("CARGO_BIN_EXE_dumb-auth"))
+        let mut dumb_auth = Command::new(env!("CARGO_BIN_EXE_dumb-auth"))
             .args(args)
             .spawn()
             .unwrap();
         common::poll_ready("http://127.0.0.1:3862", Duration::from_secs(1)).await;
+        assert!(dumb_auth.try_wait().unwrap().is_none(), "dumb-auth exited unexpectedly");
 
-        let nginx = Command::new("nginx")
+        let mut nginx = Command::new("nginx")
             .args(&[
                 "-p",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/examples/nginx/"),
@@ -39,6 +39,7 @@ impl Sut {
             .spawn()
             .unwrap();
         common::poll_ready(BASE_URI, Duration::from_secs(1)).await;
+        assert!(nginx.try_wait().unwrap().is_none(), "nginx exited unexpectedly");
 
         Self {
             base_url,
@@ -75,7 +76,7 @@ async fn interactive_auth() {
     assert_eq!(
         res.url(),
         sut.base_url
-            .join("/login")
+            .join("/auth/login")
             .unwrap()
             .query_pairs_mut()
             .append_pair("redirect_to", TEST_URI)
@@ -96,7 +97,7 @@ async fn interactive_auth() {
     assert_eq!(res.status(), StatusCode::OK);
     assert!(res
         .cookies()
-        .find(|c| c.name() == SESSION_COOKIE_NAME)
+        .find(|c| c.name() == AuthConfig::DEFAULT_SESSION_COOKIE_NAME)
         .is_some());
 
     // Make now-authenticated request

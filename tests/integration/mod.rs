@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dumb_auth::AuthConfig;
+use dumb_auth::{AppConfig, AuthConfig, Password};
 use reqwest::{cookie, Client, Method, RequestBuilder, Url};
 use tokio::{net::TcpListener, task::JoinHandle};
 
@@ -24,34 +24,32 @@ impl Sut {
         Self::with(|_| {}).await
     }
 
-    pub async fn with(auth_configurer: impl FnOnce(&mut AuthConfig)) -> Self {
-        let mut auth_config = AuthConfig::new(PASSWORD);
-        auth_configurer(&mut auth_config);
+    pub async fn with(configurer: impl FnOnce(&mut AppConfig)) -> Self {
+        let mut config = AppConfig::default(AuthConfig::default(Password::Plain(PASSWORD.into())));
+        configurer(&mut config);
 
-        Self::new(auth_config).await
+        Self::new(config).await
     }
 
-    pub async fn new(auth_config: AuthConfig) -> Self {
+    pub async fn new(config: AppConfig) -> Self {
         let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
 
         let addr = listener.local_addr().unwrap();
         let base_url = Url::parse(&format!("http://{}/", addr)).unwrap();
 
-        let cookie_store = Arc::new(cookie::Jar::default());
+        let cookies = Arc::new(cookie::Jar::default());
         let client = Client::builder()
-            .cookie_provider(cookie_store.clone())
+            .cookie_provider(cookies.clone())
             .build()
             .unwrap();
 
         let handle = tokio::spawn(async {
-            axum::serve(listener, dumb_auth::app(auth_config))
-                .await
-                .unwrap();
+            axum::serve(listener, dumb_auth::app(config)).await.unwrap();
         });
 
         Self {
             base_url,
-            cookies: cookie_store,
+            cookies,
             client,
             handle,
         }

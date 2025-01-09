@@ -1,20 +1,18 @@
+use dumb_auth::AppConfig;
 use reqwest::{Method, StatusCode};
 
 use super::{Sut, ORIGINAL_URI, PASSWORD};
 
-async fn sut() -> Sut {
-    Sut::with(|c| {
-        c.allow_basic = true;
-        c.allow_session = false;
-    })
-    .await
+fn configure(config: &mut AppConfig) {
+    config.auth_config.allow_basic = true;
+    config.auth_config.allow_session = true;
 }
 
 #[tokio::test]
 async fn returns_401_with_no_auth() {
-    let res = sut()
+    let res = Sut::with(configure)
         .await
-        .request(Method::GET, "/auth")
+        .request(Method::GET, "/auth_request")
         .header("X-Original-URI", ORIGINAL_URI)
         .send()
         .await
@@ -25,9 +23,9 @@ async fn returns_401_with_no_auth() {
 
 #[tokio::test]
 async fn returns_401_with_no_password() {
-    let res = sut()
+    let res = Sut::with(configure)
         .await
-        .request(Method::GET, "/auth")
+        .request(Method::GET, "/auth_request")
         .header("X-Original-URI", ORIGINAL_URI)
         .basic_auth("user", None::<&str>)
         .send()
@@ -39,14 +37,9 @@ async fn returns_401_with_no_password() {
 
 #[tokio::test]
 async fn returns_401_with_incorrect_password() {
-    let sut = Sut::with(|c| {
-        c.allow_basic = true;
-        c.allow_session = false;
-    })
-    .await;
-
-    let res = sut
-        .request(Method::GET, "/auth")
+    let res = Sut::with(configure)
+        .await
+        .request(Method::GET, "/auth_request")
         .header("X-Original-URI", ORIGINAL_URI)
         .basic_auth("user", Some("invalid"))
         .send()
@@ -58,9 +51,9 @@ async fn returns_401_with_incorrect_password() {
 
 #[tokio::test]
 async fn returns_200_with_correct_password() {
-    let res = sut()
+    let res = Sut::with(configure)
         .await
-        .request(Method::GET, "/auth")
+        .request(Method::GET, "/auth_request")
         .header("X-Original-URI", ORIGINAL_URI)
         .basic_auth("user", Some(PASSWORD))
         .send()
