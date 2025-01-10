@@ -5,28 +5,22 @@ use axum::{
     routing::{any, get},
     Router,
 };
-use password::PasswordChecker;
 
-use crate::sessions::Sessions;
-
-pub use crate::config::*;
-pub use crate::login::LoginForm;
-pub use crate::password::{hash_password, Password};
+use crate::{auth::Authenticator, passwords::PasswordChecker, sessions::SessionStore};
+pub use crate::{config::*, login::LoginForm, passwords::hash_password};
 
 mod auth;
-mod basic;
-mod bearer;
 mod config;
-mod cookie;
 mod login;
-mod password;
+mod passwords;
 mod sessions;
 
 #[derive(Clone)]
 pub(crate) struct AppState {
     config: AppConfig,
+    authenticator: Arc<Authenticator>,
     password_checker: Arc<PasswordChecker>,
-    sessions: Arc<Sessions>,
+    session_store: Arc<SessionStore>,
 }
 
 impl FromRef<AppState> for AppConfig {
@@ -41,21 +35,32 @@ impl FromRef<AppState> for AuthConfig {
     }
 }
 
+impl FromRef<AppState> for Arc<Authenticator> {
+    fn from_ref(input: &AppState) -> Self {
+        input.authenticator.clone()
+    }
+}
+
 impl FromRef<AppState> for Arc<PasswordChecker> {
     fn from_ref(input: &AppState) -> Self {
         input.password_checker.clone()
     }
 }
 
-impl FromRef<AppState> for Arc<Sessions> {
+impl FromRef<AppState> for Arc<SessionStore> {
     fn from_ref(input: &AppState) -> Self {
-        input.sessions.clone()
+        input.session_store.clone()
     }
 }
 
 pub fn app(config: AppConfig) -> Router {
     let password_checker = Arc::new(PasswordChecker::default());
-    let sessions = Arc::new(Sessions::new(config.auth_config.session_expiry));
+    let session_store = Arc::new(SessionStore::new(config.auth_config.session_expiry));
+    let authenticator = Arc::new(Authenticator::new(
+        config.public_path.clone(),
+        password_checker.clone(),
+        session_store.clone(),
+    ));
 
     Router::new()
         .route("/auth_request", any(auth::handle_auth_request))
@@ -65,7 +70,8 @@ pub fn app(config: AppConfig) -> Router {
         )
         .with_state(AppState {
             config,
+            authenticator,
             password_checker,
-            sessions,
+            session_store,
         })
 }

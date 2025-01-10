@@ -28,7 +28,10 @@ impl Sut {
             .spawn()
             .unwrap();
         common::poll_ready("http://127.0.0.1:3862", Duration::from_secs(1)).await;
-        assert!(dumb_auth.try_wait().unwrap().is_none(), "dumb-auth exited unexpectedly");
+        assert!(
+            dumb_auth.try_wait().unwrap().is_none(),
+            "dumb-auth exited unexpectedly"
+        );
 
         let mut nginx = Command::new("nginx")
             .args(&[
@@ -39,7 +42,10 @@ impl Sut {
             .spawn()
             .unwrap();
         common::poll_ready(BASE_URI, Duration::from_secs(1)).await;
-        assert!(nginx.try_wait().unwrap().is_none(), "nginx exited unexpectedly");
+        assert!(
+            nginx.try_wait().unwrap().is_none(),
+            "nginx exited unexpectedly"
+        );
 
         Self {
             base_url,

@@ -18,6 +18,7 @@ async fn redirects_to_login_when_no_session() {
         res.headers().get(header::LOCATION).unwrap(),
         &format!("/auth/login?redirect_to={}", ORIGINAL_URI_ENCODED)
     );
+    assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
 }
 
 #[tokio::test]
@@ -37,6 +38,7 @@ async fn redirects_to_login_when_session_invalid() {
         res.headers().get(header::LOCATION).unwrap(),
         &format!("/auth/login?redirect_to={}", ORIGINAL_URI_ENCODED)
     );
+    assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
 }
 
 #[tokio::test]
@@ -82,4 +84,6 @@ async fn login_grants_session_with_correct_password() {
         .unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(header::LOCATION), None);
+    assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
 }

@@ -5,12 +5,12 @@ use tokio::sync::RwLock;
 
 use crate::config::SessionExpiry;
 
-pub struct Sessions {
+pub struct SessionStore {
     expiry: SessionExpiry,
     sessions: RwLock<HashMap<String, Session>>,
 }
 
-impl Sessions {
+impl SessionStore {
     pub fn new(expiry: SessionExpiry) -> Self {
         Self {
             expiry,

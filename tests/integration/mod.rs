@@ -6,7 +6,7 @@ use tokio::{net::TcpListener, task::JoinHandle};
 
 mod basic;
 mod bearer;
-mod interactive;
+mod session;
 
 pub const PASSWORD: &str = "hunter2";
 pub const ORIGINAL_URI: &str = "/original?uri&query=param";

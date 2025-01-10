@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::collections::HashMap;
 
 use argon2::Argon2;
 use password_hash::{PasswordHashString, PasswordHasher, PasswordVerifier, SaltString};
@@ -6,20 +6,7 @@ use rand::thread_rng;
 use subtle::ConstantTimeEq;
 use tokio::sync::RwLock;
 
-#[derive(PartialEq, Clone)]
-pub enum Password {
-    Plain(String),
-    Hash(PasswordHashString),
-}
-
-impl fmt::Debug for Password {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Plain(_) => f.debug_tuple("Plain").finish_non_exhaustive(),
-            Self::Hash(_) => f.debug_tuple("Hash").finish_non_exhaustive(),
-        }
-    }
-}
+use crate::config::Password;
 
 #[derive(Default)]
 pub struct PasswordChecker {
@@ -55,12 +42,6 @@ impl PasswordChecker {
     }
 }
 
-pub fn hash_password(input: &str) -> password_hash::Result<PasswordHashString> {
-    let salt = SaltString::generate(thread_rng());
-    let hash = password_hasher().hash_password(input.as_bytes(), &salt)?;
-    Ok(hash.serialize())
-}
-
 fn verify_password(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
@@ -69,6 +50,12 @@ fn verify_hashed(password: &str, hash: &PasswordHashString) -> bool {
     password_hasher()
         .verify_password(password.as_bytes(), &hash.password_hash())
         .is_ok()
+}
+
+pub fn hash_password(input: &str) -> password_hash::Result<PasswordHashString> {
+    let salt = SaltString::generate(thread_rng());
+    let hash = password_hasher().hash_password(input.as_bytes(), &salt)?;
+    Ok(hash.serialize())
 }
 
 fn password_hasher() -> impl PasswordHasher {

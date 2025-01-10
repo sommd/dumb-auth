@@ -1,5 +1,8 @@
 use dumb_auth::AppConfig;
-use reqwest::{Method, StatusCode};
+use reqwest::{
+    header::{self, HeaderValue},
+    Method, StatusCode,
+};
 
 use super::{Sut, ORIGINAL_URI, PASSWORD};
 
@@ -19,6 +22,13 @@ async fn returns_401_with_no_auth() {
         .unwrap();
 
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        res.headers()
+            .get_all(header::WWW_AUTHENTICATE)
+            .iter()
+            .collect::<Vec<_>>(),
+        vec![HeaderValue::from_static("Basic realm=\"dumb-auth\"")]
+    );
 }
 
 #[tokio::test]
@@ -33,6 +43,13 @@ async fn returns_401_with_no_password() {
         .unwrap();
 
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        res.headers()
+            .get_all(header::WWW_AUTHENTICATE)
+            .iter()
+            .collect::<Vec<_>>(),
+        vec![HeaderValue::from_static("Basic realm=\"dumb-auth\"")]
+    );
 }
 
 #[tokio::test]
@@ -47,6 +64,13 @@ async fn returns_401_with_incorrect_password() {
         .unwrap();
 
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        res.headers()
+            .get_all(header::WWW_AUTHENTICATE)
+            .iter()
+            .collect::<Vec<_>>(),
+        vec![HeaderValue::from_static("Basic realm=\"dumb-auth\"")]
+    );
 }
 
 #[tokio::test]
@@ -61,4 +85,5 @@ async fn returns_200_with_correct_password() {
         .unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
 }

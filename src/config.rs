@@ -1,9 +1,8 @@
 use std::{fmt, str::FromStr};
 
 use duration_str::HumanFormat;
+use password_hash::PasswordHashString;
 use time::Duration;
-
-use crate::password::Password;
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -46,6 +45,21 @@ impl AuthConfig {
             session_cookie_name: Self::DEFAULT_SESSION_COOKIE_NAME.to_string(),
             session_cookie_domain: None,
             session_expiry: Self::DEFAULT_SESSION_EXPIRY,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone)]
+pub enum Password {
+    Plain(String),
+    Hash(PasswordHashString),
+}
+
+impl fmt::Debug for Password {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Plain(_) => f.debug_tuple("Plain").finish_non_exhaustive(),
+            Self::Hash(_) => f.debug_tuple("Hash").finish_non_exhaustive(),
         }
     }
 }
