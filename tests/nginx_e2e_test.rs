@@ -66,7 +66,7 @@ impl Drop for Sut {
 }
 
 #[tokio::test]
-async fn interactive_auth() {
+async fn session_auth() {
     let sut = Sut::new(&["--password", PASSWORD]).await;
     let client = Client::builder().cookie_store(true).build().unwrap();
 

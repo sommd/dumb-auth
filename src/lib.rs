@@ -23,12 +23,6 @@ pub(crate) struct AppState {
     session_store: Arc<SessionStore>,
 }
 
-impl FromRef<AppState> for AppConfig {
-    fn from_ref(input: &AppState) -> Self {
-        input.config.clone()
-    }
-}
-
 impl FromRef<AppState> for AuthConfig {
     fn from_ref(input: &AppState) -> Self {
         input.config.auth_config.clone()

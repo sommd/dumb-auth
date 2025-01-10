@@ -122,7 +122,7 @@ struct RunArgs {
     /// Support HTTP Bearer token authentication.
     #[arg(long, env = "DUMB_AUTH_ALLOW_BEARER", hide_env = true)]
     pub allow_bearer: bool,
-    /// Support interactive session/cookie authentication.
+    /// Support session (interactive) authentication.
     #[arg(
         long,
         env = "DUMB_AUTH_ALLOW_SESSION",
