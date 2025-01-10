@@ -1,6 +1,5 @@
 [package]
 name = "dumb-auth"
-version = "0.1.0"
 authors = ["Dana Sommerich"]
 edition = "2021"
 description = "A stupid-simple, super-lightweight, single-user auth server."
