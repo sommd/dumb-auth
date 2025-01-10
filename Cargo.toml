@@ -33,5 +33,6 @@ strip = true
 
 [dev-dependencies]
 reqwest = { version = "0.12.12", default-features = false, features = ["cookies", "json"] }
+serial_test = "3.2.0"
 tokio = { version = "1.42.0", features = ["time"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }

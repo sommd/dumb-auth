@@ -7,12 +7,11 @@ use std::{
 };
 
 use clap::{ArgAction, Args, Parser, Subcommand};
+use dumb_auth::{AppConfig, AuthConfig, Password, SessionExpiry};
 use log::error;
 use password_hash::PasswordHashString;
 use tokio::{net::TcpListener, runtime};
 use zeroize::Zeroize;
-
-use dumb_auth::{AppConfig, AuthConfig, Password, SessionExpiry};
 
 #[derive(Debug, PartialEq, Parser)]
 #[command(about, author, version, args_conflicts_with_subcommands = true)]

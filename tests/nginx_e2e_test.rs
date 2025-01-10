@@ -3,10 +3,12 @@ use std::{
     time::Duration,
 };
 
+use axum::http::HeaderValue;
 use dumb_auth::{AuthConfig, LoginForm};
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{header, Client, StatusCode, Url};
+use serial_test::serial;
 
-use common::PASSWORD;
+use self::common::PASSWORD;
 
 mod common;
 
@@ -66,6 +68,99 @@ impl Drop for Sut {
 }
 
 #[tokio::test]
+#[serial]
+async fn basic_auth() {
+    let sut = Sut::new(&[
+        "--password",
+        PASSWORD,
+        "--allow-basic",
+        "--allow-session=false",
+    ])
+    .await;
+    let client = Client::new();
+
+    // Make an unauthenticated request
+    let res = client
+        .get(sut.base_url.join(TEST_URI).unwrap())
+        .send()
+        .await
+        .unwrap();
+
+    // Returns 401
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        res.headers()
+            .get_all(header::WWW_AUTHENTICATE)
+            .iter()
+            .collect::<Vec<_>>(),
+        vec![HeaderValue::from_static("Basic realm=\"dumb-auth\"")]
+    );
+
+    // Make an authenticated request
+    let res = client
+        .get(sut.base_url.join(TEST_URI).unwrap())
+        .basic_auth("user", Some(PASSWORD))
+        .send()
+        .await
+        .unwrap();
+
+    // Returns 200
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
+    assert_eq!(
+        res.text().await.unwrap(),
+        include_str!("../examples/nginx/www/index.html")
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn bearer_auth() {
+    let sut = Sut::new(&[
+        "--password",
+        PASSWORD,
+        "--allow-bearer",
+        "--allow-session=false",
+    ])
+    .await;
+    let client = Client::new();
+
+    // Make an unauthenticated request
+    let res = client
+        .get(sut.base_url.join(TEST_URI).unwrap())
+        .send()
+        .await
+        .unwrap();
+
+    // Returns 401
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        res.headers()
+            .get_all(header::WWW_AUTHENTICATE)
+            .iter()
+            .collect::<Vec<_>>(),
+        vec![HeaderValue::from_static("Bearer realm=\"dumb-auth\"")]
+    );
+
+    // Make an authenticated request
+    let res = client
+        .get(sut.base_url.join(TEST_URI).unwrap())
+        .bearer_auth(PASSWORD)
+        .send()
+        .await
+        .unwrap();
+
+    // Returns 200
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
+    assert_eq!(
+        res.text().await.unwrap(),
+        include_str!("../examples/nginx/www/index.html")
+    );
+}
+
+#[tokio::test]
+#[serial]
 async fn session_auth() {
     let sut = Sut::new(&["--password", PASSWORD]).await;
     let client = Client::builder().cookie_store(true).build().unwrap();
