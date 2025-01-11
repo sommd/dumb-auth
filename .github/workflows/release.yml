@@ -5,32 +5,53 @@ on:
     tags:
       - v[0-9]+.[0-9]+.[0-9]+ # vMAJOR.MINOR.PATCH
 
-permissions: write-all
-
 jobs:
-  release:
+  build:
     strategy:
       matrix:
-        os: [ubuntu-20.04]
-        target: [x86_64-unknown-linux-gnu]
-    runs-on: ${{ matrix.os }}
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+    runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Set version
         run: sed -i '/^\[package\]$/a version = "'"${GITHUB_REF_NAME#v}"'"' Cargo.toml
-      - name: Install target toolchain
+      - name: Install target
         run: rustup target add '${{ matrix.target }}'
-      - name: Build release
+      - name: Build
         run: cargo build --target '${{ matrix.target }}' --release
-      - name: Test release
+      - name: Test
         run: cargo test --target '${{ matrix.target }}' --release
+      - name: Rename binary
+        run: mv 'target/${{ matrix.target }}/release/dumb-auth' 'dumb-auth-${{ github.ref_name }}-${{ matrix.target }}'
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: dumb-auth-${{ github.ref_name }}-${{ matrix.target }}
+          path: dumb-auth-${{ github.ref_name }}-${{ matrix.target }}
+          if-no-files-found: error
+
+  release:
+    permissions:
+      contents: write
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download bins
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
       - name: Create Github release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create \
-            --draft \
             --generate-notes \
             --verify-tag \
+            --repo '${{ github.repository }}' \
             '${{ github.ref_name }}' \
-            'target/${{ matrix.target }}/release/dumb-auth#dumb-auth-${{ github.ref_name }}-${{ matrix.target }}'
+            'dumb-auth-${{ github.ref_name }}-'*
