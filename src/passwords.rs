@@ -17,22 +17,28 @@ impl PasswordChecker {
     pub async fn check_password(&self, input: &str, configured: &Password) -> bool {
         match configured {
             Password::Plain(configured) => verify_password(input, configured),
-            Password::Hash(configured) => self.check_hashed(input, configured).await,
+            Password::Hash(configured) => {
+                if let Some(result) = self.check_cache(input, configured).await {
+                    result
+                } else {
+                    self.check_hash(input, configured).await
+                }
+            }
         }
     }
 
-    async fn check_hashed(&self, input: &str, configured: &PasswordHashString) -> bool {
-        let cache_key = configured.as_str();
+    async fn check_cache(&self, input: &str, configured: &PasswordHashString) -> Option<bool> {
+        let hash_cache = self.hash_cache.read().await;
+        let cached = hash_cache.get(configured.as_str())?;
+        Some(verify_password(input, cached))
+    }
 
-        if let Some(cached) = self.hash_cache.read().await.get(cache_key) {
-            // Check if cached password matches
-            verify_password(input, cached)
-        } else if verify_hashed(input, configured) {
-            // Cache verified password
+    async fn check_hash(&self, input: &str, configured: &PasswordHashString) -> bool {
+        if verify_hash(input, configured) {
             self.hash_cache
                 .write()
                 .await
-                .entry(cache_key.into())
+                .entry(configured.as_str().into())
                 .or_insert_with(|| input.into());
 
             true
@@ -46,7 +52,7 @@ fn verify_password(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
-fn verify_hashed(password: &str, hash: &PasswordHashString) -> bool {
+fn verify_hash(password: &str, hash: &PasswordHashString) -> bool {
     password_hasher()
         .verify_password(password.as_bytes(), &hash.password_hash())
         .is_ok()
