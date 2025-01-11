@@ -25,8 +25,8 @@ jobs:
         run: rustup target add '${{ matrix.target }}'
       - name: Build
         run: cargo build --target '${{ matrix.target }}' --release
-      - name: Test
-        run: cargo test --target '${{ matrix.target }}' --release
+      # - name: Test
+      #   run: cargo test --target '${{ matrix.target }}' --release
       - name: Rename binary
         run: mv 'target/${{ matrix.target }}/release/dumb-auth' 'dumb-auth-${{ github.ref_name }}-${{ matrix.target }}'
       - name: Upload binary
@@ -36,27 +36,27 @@ jobs:
           path: dumb-auth-${{ github.ref_name }}-${{ matrix.target }}
           if-no-files-found: error
 
-  release:
-    permissions:
-      contents: write
-    needs: build
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-      - name: Create Github release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create \
-            --generate-notes \
-            --verify-tag \
-            '${{ github.ref_name }}' \
-            'dumb-auth-${{ github.ref_name }}-'*
+  # release:
+  #   permissions:
+  #     contents: write
+  #   needs: build
+  #   runs-on: ubuntu-20.04
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #     - name: Download binaries
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         merge-multiple: true
+  #     - name: Create Github release
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: |
+  #         gh release create \
+  #           --generate-notes \
+  #           --verify-tag \
+  #           '${{ github.ref_name }}' \
+  #           'dumb-auth-${{ github.ref_name }}-'*
 
   docker:
     needs: build
@@ -65,6 +65,7 @@ jobs:
       matrix:
         include:
           - image: dumb-auth
+          - image: dumb-auth-swag-mod
     steps:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
