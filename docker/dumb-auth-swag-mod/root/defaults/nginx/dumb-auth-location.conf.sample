@@ -1,0 +1,8 @@
+## Version 2025/01/11
+
+# Authenticate requests using /auth_request which proxies to dumb-auth
+auth_request /auth_request;
+# Extract Location header from response for @auth_denied_handler to use
+auth_request_set $auth_redirect_uri $upstream_http_location;
+# Use @auth_denied_handler to handle 401's from dumb-auth
+error_page 401 = @auth_denied_handler;

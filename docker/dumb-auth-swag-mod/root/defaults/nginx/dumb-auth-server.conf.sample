@@ -1,0 +1,41 @@
+## Version 2025/01/11
+
+set $dumb_auth_host 127.0.0.1;
+set $dumb_auth_port 3862;
+
+location = /auth_request {
+    internal;
+
+    # auth_request doesn't forward the body, so don't proxy it
+    proxy_pass_request_body off;
+
+    # Only forward headers that are safe to forward
+    proxy_pass_request_headers off;
+    proxy_set_header Host $host;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header Cookie $http_cookie;
+    # Forward the request URI to dumb-auth
+    proxy_set_header X-Original-URI $request_uri;
+
+    proxy_pass http://$dumb_auth_host:$dumb_auth_port;
+}
+
+location @auth_denied_handler {
+    internal;
+
+    # Redirect to Location header from auth response if it was present
+    if ($auth_redirect_uri) {
+        return 303 $auth_redirect_uri;
+    }
+
+    # Otherwise we just return 401
+    return 401;
+}
+
+# dumb-auth public frontend routes
+location /auth {
+    # Disabled auth
+    auth_request off;
+
+    proxy_pass http://$dumb_auth_host:$dumb_auth_port;
+}
