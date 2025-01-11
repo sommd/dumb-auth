@@ -5,7 +5,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
-use log::error;
+use log::{debug, error};
 
 use crate::{auth::Authenticator, AuthConfig};
 
@@ -31,6 +31,12 @@ pub async fn handle_auth_request(
     let result = authenticator
         .authenticate(original_uri, &auth_config, &headers)
         .await;
+
+    debug!(
+        "Auth request for {}: {}",
+        original_uri,
+        if result.valid { "valid" } else { "invalid" }
+    );
 
     let status = if result.valid {
         StatusCode::OK

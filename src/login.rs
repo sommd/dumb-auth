@@ -10,6 +10,7 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
     CookieJar,
 };
+use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -40,8 +41,11 @@ pub async fn handle_post_login(
         .check_password(&form.password, &auth_config.password)
         .await
     {
+        debug!("Login: invalid");
         return StatusCode::UNAUTHORIZED.into_response();
     }
+
+    debug!("Login: valid");
 
     let (session_token, _) = session_store.create_session().await;
     let session_cookie = create_session_cookie(&auth_config, session_token);

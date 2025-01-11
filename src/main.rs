@@ -8,7 +8,7 @@ use std::{
 
 use clap::{ArgAction, Args, Parser, Subcommand};
 use dumb_auth::{AppConfig, AuthConfig, Password, SessionExpiry};
-use log::error;
+use log::{error, info};
 use password_hash::PasswordHashString;
 use tokio::{net::TcpListener, runtime};
 use zeroize::Zeroize;
@@ -267,7 +267,11 @@ struct PasswdArgs {
 }
 
 fn main() {
-    env_logger::init();
+    env_logger::init_from_env(
+        env_logger::Env::new()
+            .filter_or("DUMB_AUTH_LOG", "info")
+            .write_style("DUMB_AUTH_LOG_STYLE"),
+    );
 
     let cli = Cli::parse();
     match cli.cmd {
@@ -319,6 +323,7 @@ fn run(args: RunArgs) {
 
     rt.block_on(async {
         let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
+        info!("Listening for requests on {}", &args.bind_addr);
         axum::serve(listener, app).await.unwrap();
     });
 }
