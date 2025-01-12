@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::http::HeaderMap;
+use tracing::{debug, instrument};
 
 use crate::{passwords::PasswordChecker, sessions::SessionStore, AuthConfig};
 
@@ -28,23 +29,39 @@ impl Authenticator {
         }
     }
 
+    #[instrument(skip(self, auth_config, headers))]
     pub async fn authenticate(
         &self,
-        original_uri: &str,
         auth_config: &AuthConfig,
+        original_uri: &str,
+        headers: &HeaderMap,
+    ) -> AuthResult {
+        let result = self
+            .do_authenticate(auth_config, original_uri, headers)
+            .await;
+
+        debug!("Auth: {}", if result.valid { "valid" } else { "invalid" });
+
+        result
+    }
+
+    async fn do_authenticate(
+        &self,
+        auth_config: &AuthConfig,
+        original_uri: &str,
         headers: &HeaderMap,
     ) -> AuthResult {
         let mut all_response_headers = None;
 
         if self.basic.is_allowed(auth_config) {
-            match self.basic.verify(original_uri, auth_config, headers).await {
+            match self.basic.verify(auth_config, original_uri, headers).await {
                 result @ AuthResult { valid: true, .. } => return result,
                 result => Self::append_result(&mut all_response_headers, result),
             }
         }
 
         if self.bearer.is_allowed(auth_config) {
-            match self.bearer.verify(original_uri, auth_config, headers).await {
+            match self.bearer.verify(auth_config, original_uri, headers).await {
                 result @ AuthResult { valid: true, .. } => return result,
                 result => Self::append_result(&mut all_response_headers, result),
             }
@@ -53,7 +70,7 @@ impl Authenticator {
         if self.session.is_allowed(auth_config) {
             match self
                 .session
-                .verify(original_uri, auth_config, headers)
+                .verify(auth_config, original_uri, headers)
                 .await
             {
                 result @ AuthResult { valid: true, .. } => return result,

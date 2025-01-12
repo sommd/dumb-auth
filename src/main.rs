@@ -8,9 +8,10 @@ use std::{
 
 use clap::{ArgAction, Args, Parser, Subcommand};
 use dumb_auth::{AppConfig, AuthConfig, Password, SessionExpiry};
-use log::{error, info};
 use password_hash::PasswordHashString;
 use tokio::{net::TcpListener, runtime};
+use tracing::{error, info, level_filters::LevelFilter};
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use zeroize::Zeroize;
 
 #[derive(Debug, PartialEq, Parser)]
@@ -267,11 +268,14 @@ struct PasswdArgs {
 }
 
 fn main() {
-    env_logger::init_from_env(
-        env_logger::Env::new()
-            .filter_or("DUMB_AUTH_LOG", "info")
-            .write_style("DUMB_AUTH_LOG_STYLE"),
-    );
+    FmtSubscriber::builder()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_env_var("DUMB_AUTH_LOG")
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
+        .init();
 
     let cli = Cli::parse();
     match cli.cmd {
@@ -323,7 +327,7 @@ fn run(args: RunArgs) {
 
     rt.block_on(async {
         let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
-        info!("Listening for requests on {}", &args.bind_addr);
+        info!("Listening for requests on http://{}", &args.bind_addr);
         axum::serve(listener, app).await.unwrap();
     });
 }

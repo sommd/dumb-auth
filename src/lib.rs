@@ -5,6 +5,7 @@ use axum::{
     routing::{any, get},
     Router,
 };
+use tower_http::trace::TraceLayer;
 
 use crate::{auth::Authenticator, passwords::PasswordChecker, sessions::SessionStore};
 pub use crate::{config::*, login::LoginForm, passwords::hash_password};
@@ -68,4 +69,5 @@ pub fn app(config: AppConfig) -> Router {
             password_checker,
             session_store,
         })
+        .layer(TraceLayer::new_for_http())
 }

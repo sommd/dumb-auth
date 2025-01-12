@@ -10,8 +10,8 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
     CookieJar,
 };
-use log::debug;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::{
     config::{AuthConfig, SessionExpiry},

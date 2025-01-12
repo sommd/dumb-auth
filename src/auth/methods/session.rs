@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::http::{header, HeaderMap, HeaderValue};
 use axum_extra::headers::{Cookie, HeaderMapExt};
-use log::{error, warn};
+use tracing::{error, warn};
 
 use crate::{
     auth::{methods::AuthMethod, AuthResult},
@@ -52,8 +52,8 @@ impl AuthMethod for SessionAuth {
 
     async fn verify(
         &self,
-        original_uri: &str,
         auth_config: &AuthConfig,
+        original_uri: &str,
         headers: &HeaderMap,
     ) -> AuthResult {
         if let Some(cookie) = headers.typed_get::<Cookie>() {

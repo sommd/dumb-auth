@@ -17,8 +17,8 @@ pub trait AuthMethod {
 
     async fn verify(
         &self,
-        original_uri: &str,
         auth_config: &AuthConfig,
+        original_uri: &str,
         headers: &HeaderMap,
     ) -> AuthResult;
 }

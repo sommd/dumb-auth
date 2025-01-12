@@ -26,8 +26,8 @@ impl AuthMethod for BearerAuth {
 
     async fn verify(
         &self,
-        _original_uri: &str,
         auth_config: &AuthConfig,
+        _original_uri: &str,
         headers: &HeaderMap,
     ) -> AuthResult {
         if let Some(authorization) = headers.typed_get::<Authorization<Bearer>>() {
