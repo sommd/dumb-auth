@@ -4,10 +4,11 @@ use reqwest::{header, Method, StatusCode};
 use super::{Sut, ORIGINAL_URI, ORIGINAL_URI_ENCODED, PASSWORD};
 
 #[tokio::test]
-async fn redirects_to_login_when_no_session() {
+async fn redirects_browser_to_login_when_no_session() {
     let res = Sut::default()
         .await
         .request(Method::GET, "/auth_request")
+        .header(header::ACCEPT, "text/html")
         .header("X-Original-URI", ORIGINAL_URI)
         .send()
         .await
@@ -22,12 +23,13 @@ async fn redirects_to_login_when_no_session() {
 }
 
 #[tokio::test]
-async fn redirects_to_login_when_session_invalid() {
+async fn redirects_browser_to_login_when_session_invalid() {
     let sut = Sut::default().await;
     sut.set_cookie(AuthConfig::DEFAULT_SESSION_COOKIE_NAME, "invalid");
 
     let res = sut
         .request(Method::GET, "/auth_request")
+        .header(header::ACCEPT, "text/html")
         .header("X-Original-URI", ORIGINAL_URI)
         .send()
         .await
@@ -38,6 +40,21 @@ async fn redirects_to_login_when_session_invalid() {
         res.headers().get(header::LOCATION).unwrap(),
         &format!("/auth/login?redirect_to={}", ORIGINAL_URI_ENCODED)
     );
+    assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
+}
+
+#[tokio::test]
+async fn returns_401_when_non_browser() {
+    let res = Sut::default()
+        .await
+        .request(Method::GET, "/auth_request")
+        .header("X-Original-URI", ORIGINAL_URI)
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(res.headers().get(header::LOCATION), None);
     assert_eq!(res.headers().get(header::WWW_AUTHENTICATE), None);
 }
 

@@ -5,7 +5,10 @@ use std::{
 
 use axum::http::HeaderValue;
 use dumb_auth::{AuthConfig, LoginForm};
-use reqwest::{header, Client, StatusCode, Url};
+use reqwest::{
+    header::{self, HeaderMap},
+    Client, StatusCode, Url,
+};
 use serial_test::serial;
 
 use self::common::PASSWORD;
@@ -163,7 +166,13 @@ async fn bearer_auth() {
 #[serial]
 async fn session_auth() {
     let sut = Sut::new(&["--password", PASSWORD]).await;
-    let client = Client::builder().cookie_store(true).build().unwrap();
+    let mut headers = HeaderMap::new();
+    headers.insert(header::ACCEPT, HeaderValue::from_static("text/html"));
+    let client = Client::builder()
+        .cookie_store(true)
+        .default_headers(headers)
+        .build()
+        .unwrap();
 
     // Make an unauthenticated request
     let res = client

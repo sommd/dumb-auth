@@ -1,4 +1,4 @@
-## Version 2025/01/11
+## Version 2025/01/13
 
 set $dumb_auth_host 127.0.0.1;
 set $dumb_auth_port 3862;
@@ -11,9 +11,13 @@ location = /auth_request {
 
     # Only forward headers that are safe to forward
     proxy_pass_request_headers off;
-    proxy_set_header Host $host;
+    proxy_set_header Accept $http_accept;
     proxy_set_header Authorization $http_authorization;
     proxy_set_header Cookie $http_cookie;
+    proxy_set_header Host $host;
+    proxy_set_header Origin $http_origin;
+    proxy_set_header Referer $http_referer;
+    proxy_set_header User-Agent $http_user_agent;
     # Forward the request URI to dumb-auth
     proxy_set_header X-Original-URI $request_uri;
 

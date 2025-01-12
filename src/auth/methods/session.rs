@@ -22,27 +22,6 @@ impl SessionAuth {
             session_store,
         }
     }
-
-    fn login_location(&self, original_uri: &str) -> Option<HeaderValue> {
-        let query = form_urlencoded::Serializer::new(String::new())
-            .append_pair("redirect_to", original_uri)
-            .finish();
-        let redirect_uri = format!("{}/login?{}", &self.public_path, query);
-
-        match HeaderValue::try_from(redirect_uri) {
-            Ok(location) => Some(location),
-            Err(e) => match HeaderValue::try_from(format!("{}/login", self.public_path)) {
-                Ok(location) => {
-                    warn!("Error encoding login URI with original URI: {}", e);
-                    Some(location)
-                }
-                Err(e) => {
-                    error!("Error encoding login URI: {}", e);
-                    None
-                }
-            },
-        }
-    }
 }
 
 impl AuthMethod for SessionAuth {
@@ -69,10 +48,45 @@ impl AuthMethod for SessionAuth {
             }
         }
 
-        if let Some(location) = self.login_location(original_uri) {
-            AuthResult::invalid().with_header(header::LOCATION, location)
-        } else {
-            AuthResult::invalid()
+        if should_redirect(headers) {
+            if let Some(location) = login_location(&self.public_path, original_uri) {
+                return AuthResult::invalid().with_header(header::LOCATION, location);
+            }
         }
+
+        AuthResult::invalid()
+    }
+}
+
+fn should_redirect(headers: &HeaderMap) -> bool {
+    let accept = headers
+        .get(header::ACCEPT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("*/*");
+
+    accept
+        .split(',')
+        .map(|directive| directive.split(';').next().unwrap_or(""))
+        .any(|media_type| media_type.eq_ignore_ascii_case("text/html"))
+}
+
+fn login_location(public_path: &str, original_uri: &str) -> Option<HeaderValue> {
+    let query = form_urlencoded::Serializer::new(String::new())
+        .append_pair("redirect_to", original_uri)
+        .finish();
+    let redirect_uri = format!("{}/login?{}", public_path, query);
+
+    match HeaderValue::try_from(redirect_uri) {
+        Ok(location) => Some(location),
+        Err(e) => match HeaderValue::try_from(format!("{}/login", public_path)) {
+            Ok(location) => {
+                warn!("Error encoding login URI with original URI: {}", e);
+                Some(location)
+            }
+            Err(e) => {
+                error!("Error encoding login URI: {}", e);
+                None
+            }
+        },
     }
 }
