@@ -19,10 +19,10 @@ use crate::{
     sessions::SessionStore,
 };
 
-static INDEX_HTML: &str = include_str!("../frontend/index.html");
+static LOGIN_HTML: &str = include_str!("../frontend/login.html");
 
 pub async fn handle_get_login() -> Response {
-    Html(INDEX_HTML).into_response()
+    Html(LOGIN_HTML).into_response()
 }
 
 #[derive(Deserialize, Serialize)]
