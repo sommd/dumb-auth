@@ -1,10 +1,12 @@
 [package]
 name = "dumb-auth"
+version = "0.0.0"
 authors = ["Dana Sommerich"]
 edition = "2021"
 description = "A stupid-simple, super-lightweight, single-user auth server."
 repository = "https://github.com/sommd/dumb-auth"
 license = "AGPL-3.0-only"
+publish = false
 
 [dependencies]
 argon2 = "0.5.3"

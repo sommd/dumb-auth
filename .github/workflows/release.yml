@@ -3,7 +3,9 @@ name: Release
 on:
   push:
     tags:
-      - v[0-9]+.[0-9]+.[0-9]+ # vMAJOR.MINOR.PATCH
+      - "[0-9]+.[0-9]+.[0-9]+" # MAJOR.MINOR.PATCH
+      - "[0-9]+.[0-9]+.[0-9]+-[A-Za-z]+" # MAJOR.MINOR.PATCH-pre
+      - "[0-9]+.[0-9]+.[0-9]+-[A-Za-z]+.[0-9]+" # MAJOR.MINOR.PATCH-pre.num
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set version
-        run: sed -i '/^\[package\]$/a version = "'"${GITHUB_REF_NAME#v}"'"' Cargo.toml
+        run: sed -i 's/$version = "[^"]*"/version = "${{ github.ref_name }}"/' Cargo.toml
       - name: Install target
         run: rustup target add '${{ matrix.target }}'
       - name: Build
@@ -54,6 +56,7 @@ jobs:
         run: |
           gh release create \
             --generate-notes \
+            ${{ contains(github.ref_name, '-') && '--prerelease' || '' }} \
             --verify-tag \
             '${{ github.ref_name }}' \
             'dumb-auth-${{ github.ref_name }}-'*
@@ -91,5 +94,5 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            sommd/${{ matrix.image }}:latest
             sommd/${{ matrix.image }}:${{ github.ref_name }}
+            ${{ contains(github.ref_name, '-') && '' || format('sommd/{0}:latest', matrix.image) }}
