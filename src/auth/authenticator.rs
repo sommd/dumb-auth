@@ -3,14 +3,14 @@ use std::sync::Arc;
 use axum::http::HeaderMap;
 use tracing::{debug, instrument};
 
-use crate::{passwords::PasswordChecker, sessions::SessionStore, AuthConfig};
+use crate::{passwords::PasswordChecker, sessions::SessionStore, AppError, AuthConfig};
 
 use super::{
     methods::{AuthMethod, BasicAuth, BearerAuth, SessionAuth},
     AuthResult,
 };
 
-pub struct Authenticator {
+pub(crate) struct Authenticator {
     basic: BasicAuth,
     bearer: BearerAuth,
     session: SessionAuth,
@@ -35,14 +35,14 @@ impl Authenticator {
         auth_config: &AuthConfig,
         original_uri: &str,
         headers: &HeaderMap,
-    ) -> AuthResult {
+    ) -> Result<AuthResult, AppError> {
         let result = self
             .do_authenticate(auth_config, original_uri, headers)
-            .await;
+            .await?;
 
         debug!("Auth: {}", if result.valid { "valid" } else { "invalid" });
 
-        result
+        Ok(result)
     }
 
     async fn do_authenticate(
@@ -50,19 +50,27 @@ impl Authenticator {
         auth_config: &AuthConfig,
         original_uri: &str,
         headers: &HeaderMap,
-    ) -> AuthResult {
+    ) -> Result<AuthResult, AppError> {
         let mut all_response_headers = None;
 
         if self.basic.is_allowed(auth_config) {
-            match self.basic.verify(auth_config, original_uri, headers).await {
-                result @ AuthResult { valid: true, .. } => return result,
+            match self
+                .basic
+                .verify(auth_config, original_uri, headers)
+                .await?
+            {
+                result @ AuthResult { valid: true, .. } => return Ok(result),
                 result => Self::append_result(&mut all_response_headers, result),
             }
         }
 
         if self.bearer.is_allowed(auth_config) {
-            match self.bearer.verify(auth_config, original_uri, headers).await {
-                result @ AuthResult { valid: true, .. } => return result,
+            match self
+                .bearer
+                .verify(auth_config, original_uri, headers)
+                .await?
+            {
+                result @ AuthResult { valid: true, .. } => return Ok(result),
                 result => Self::append_result(&mut all_response_headers, result),
             }
         }
@@ -71,17 +79,17 @@ impl Authenticator {
             match self
                 .session
                 .verify(auth_config, original_uri, headers)
-                .await
+                .await?
             {
-                result @ AuthResult { valid: true, .. } => return result,
+                result @ AuthResult { valid: true, .. } => return Ok(result),
                 result => Self::append_result(&mut all_response_headers, result),
             }
         }
 
-        AuthResult {
+        Ok(AuthResult {
             valid: false,
             response_headers: all_response_headers,
-        }
+        })
     }
 
     fn append_result(all_response_headers: &mut Option<HeaderMap>, auth_result: AuthResult) {

@@ -36,21 +36,21 @@ pub async fn handle_post_login(
     State(session_store): State<Arc<SessionStore>>,
     cookie_jar: CookieJar,
     Json(form): Json<LoginForm>,
-) -> Response {
+) -> axum::response::Result<Response> {
     if !password_checker
         .check_password(&form.password, &auth_config.password)
         .await
     {
         debug!("Login: invalid");
-        return StatusCode::UNAUTHORIZED.into_response();
+        return Ok(StatusCode::UNAUTHORIZED.into_response());
     }
 
     debug!("Login: valid");
 
-    let (session_token, _) = session_store.create_session().await;
+    let (session_token, _) = session_store.create_session().await?;
     let session_cookie = create_session_cookie(&auth_config, session_token);
 
-    (cookie_jar.add(session_cookie.into_owned()), StatusCode::OK).into_response()
+    Ok((cookie_jar.add(session_cookie.into_owned()), StatusCode::OK).into_response())
 }
 
 fn create_session_cookie(auth_config: &AuthConfig, session_token: String) -> Cookie<'static> {

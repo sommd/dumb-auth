@@ -1,12 +1,10 @@
 use axum::http::HeaderMap;
 
-use crate::AuthConfig;
+use crate::{auth::AuthResult, AppError, AuthConfig};
 
 pub use basic::BasicAuth;
 pub use bearer::BearerAuth;
 pub use session::SessionAuth;
-
-use super::AuthResult;
 
 mod basic;
 mod bearer;
@@ -20,5 +18,5 @@ pub trait AuthMethod {
         auth_config: &AuthConfig,
         original_uri: &str,
         headers: &HeaderMap,
-    ) -> AuthResult;
+    ) -> Result<AuthResult, AppError>;
 }

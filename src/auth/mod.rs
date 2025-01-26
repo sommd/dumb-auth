@@ -1,6 +1,6 @@
 use axum::http::{header::IntoHeaderName, HeaderMap, HeaderValue};
 
-pub use self::{auth_request::handle_auth_request, authenticator::Authenticator};
+pub(crate) use self::{auth_request::handle_auth_request, authenticator::Authenticator};
 
 mod auth_request;
 mod authenticator;

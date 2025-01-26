@@ -30,7 +30,7 @@ pub async fn handle_auth_request(
 
     let result = authenticator
         .authenticate(&auth_config, original_uri, &headers)
-        .await;
+        .await?;
 
     let status = if result.valid {
         StatusCode::OK

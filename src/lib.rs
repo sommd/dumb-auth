@@ -2,22 +2,32 @@ use std::sync::Arc;
 
 use axum::{
     extract::FromRef,
+    http::StatusCode,
+    response::{IntoResponse, Response},
     routing::{any, get},
     Router,
 };
+use thiserror::Error;
 use tower_http::trace::TraceLayer;
+use tracing::error;
 
-use crate::{auth::Authenticator, passwords::PasswordChecker, sessions::SessionStore};
+use crate::{
+    auth::Authenticator,
+    datastore::{DatastoreError, InMemoryDatastore},
+    passwords::PasswordChecker,
+    sessions::SessionStore,
+};
 pub use crate::{config::*, login::LoginForm, passwords::hash_password};
 
 mod auth;
 mod config;
+mod datastore;
 mod login;
 mod passwords;
 mod sessions;
 
 #[derive(Clone)]
-pub(crate) struct AppState {
+struct AppState {
     config: AppConfig,
     authenticator: Arc<Authenticator>,
     password_checker: Arc<PasswordChecker>,
@@ -48,9 +58,32 @@ impl FromRef<AppState> for Arc<SessionStore> {
     }
 }
 
+#[derive(Debug, Error)]
+enum AppError {
+    #[error("{0}")]
+    DatastoreError(#[from] DatastoreError),
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let status = match self {
+            Self::DatastoreError(e) => {
+                error!("Error from datastore: {e}");
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        };
+
+        status.into_response()
+    }
+}
+
 pub fn app(config: AppConfig) -> Router {
     let password_checker = Arc::new(PasswordChecker::default());
-    let session_store = Arc::new(SessionStore::new(config.auth_config.session_expiry));
+    let datastore = Arc::new(InMemoryDatastore::new());
+    let session_store = Arc::new(SessionStore::new(
+        config.auth_config.session_expiry,
+        datastore,
+    ));
     let authenticator = Arc::new(Authenticator::new(
         config.public_path.clone(),
         password_checker.clone(),

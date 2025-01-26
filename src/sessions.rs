@@ -1,67 +1,59 @@
-use std::{collections::HashMap, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use tokio::sync::RwLock;
 
-use crate::config::SessionExpiry;
+use crate::{
+    config::SessionExpiry,
+    datastore::{Datastore, StoreSessionError},
+    AppError,
+};
 
-pub struct SessionStore {
+pub(crate) struct SessionStore {
     expiry: SessionExpiry,
-    sessions: RwLock<HashMap<String, Session>>,
+    datastore: Arc<dyn Datastore>,
 }
 
 impl SessionStore {
-    pub fn new(expiry: SessionExpiry) -> Self {
-        Self {
-            expiry,
-            sessions: RwLock::new(HashMap::new()),
-        }
+    pub fn new(expiry: SessionExpiry, datastore: Arc<dyn Datastore>) -> Self {
+        Self { expiry, datastore }
     }
 
-    pub async fn get_valid_session(&self, token: &str) -> Option<Session> {
-        let session = {
-            let r = self.sessions.read().await;
-            r.get(token)?.clone()
+    pub async fn get_valid_session(&self, token: &str) -> Result<Option<Session>, AppError> {
+        let session = match self.datastore.get_session(token).await? {
+            Some(session) => session,
+            None => return Ok(None),
         };
 
         if let SessionExpiry::Duration(expiry) = self.expiry {
             if session.created.elapsed() >= expiry {
-                self.sessions.write().await.remove(token);
-                return None;
+                self.datastore.delete_session(token).await?;
+                return Ok(None);
             }
         }
 
-        Some(session)
+        Ok(Some(session))
     }
 
-    pub async fn create_session(&self) -> (String, Session) {
+    pub async fn create_session(&self) -> Result<(String, Session), AppError> {
         let session = Session {
             created: Instant::now(),
         };
 
-        let mut token = generate_token();
-        {
-            let mut w = self.sessions.write().await;
-            // Should never happen, but just make sure we generate a unique token
-            while w.contains_key(&token) {
-                token = generate_token();
+        let token = loop {
+            let token = generate_token();
+            match self.datastore.store_session(&token, &session).await? {
+                Ok(()) => break token,
+                Err(StoreSessionError::AlreadyExists) => continue,
             }
-            w.insert(token.clone(), session.clone());
-        }
+        };
 
-        (token, session)
+        Ok((token, session))
     }
 }
 
 #[derive(Clone)]
 pub struct Session {
     created: Instant,
-}
-
-impl Session {
-    pub fn created(&self) -> Instant {
-        self.created
-    }
 }
 
 fn generate_token() -> String {
