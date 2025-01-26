@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set version
-        run: sed -i 's/$version = "[^"]*"/version = "${{ github.ref_name }}"/' Cargo.toml
+        run: sed -i 's/^version = "[^"]*"/version = "${{ github.ref_name }}"/' Cargo.toml
       - name: Install target
         run: rustup target add '${{ matrix.target }}'
       - name: Build
