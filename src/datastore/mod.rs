@@ -4,8 +4,12 @@ use thiserror::Error;
 use crate::sessions::Session;
 
 pub use self::memory::InMemoryDatastore;
+#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+pub use self::sqlite::SqliteDatastore;
 
 mod memory;
+#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+mod sqlite;
 
 #[async_trait]
 pub trait Datastore: Send + Sync {
@@ -21,7 +25,11 @@ pub trait Datastore: Send + Sync {
 }
 
 #[derive(Debug, Error)]
-pub enum DatastoreError {}
+pub enum DatastoreError {
+    #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+    #[error("{0}")]
+    SqlxError(#[from] sqlx::Error),
+}
 
 #[derive(Clone, Copy, Debug, Error)]
 pub enum StoreSessionError {

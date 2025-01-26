@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::{sync::Arc, time::SystemTime};
 
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
@@ -25,7 +25,7 @@ impl SessionStore {
         };
 
         if let SessionExpiry::Duration(expiry) = self.expiry {
-            if session.created.elapsed() >= expiry {
+            if session.created.elapsed().unwrap_or_default() >= expiry {
                 self.datastore.delete_session(token).await?;
                 return Ok(None);
             }
@@ -36,7 +36,7 @@ impl SessionStore {
 
     pub async fn create_session(&self) -> Result<(String, Session), AppError> {
         let session = Session {
-            created: Instant::now(),
+            created: SystemTime::now(),
         };
 
         let token = loop {
@@ -53,7 +53,7 @@ impl SessionStore {
 
 #[derive(Clone)]
 pub struct Session {
-    created: Instant,
+    pub created: SystemTime,
 }
 
 fn generate_token() -> String {

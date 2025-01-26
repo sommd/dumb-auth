@@ -44,7 +44,16 @@ impl Sut {
             .unwrap();
 
         let handle = tokio::spawn(async {
-            axum::serve(listener, dumb_auth::app(config)).await.unwrap();
+            #[cfg(not(any(feature = "sqlite", feature = "sqlite-unbundled")))]
+            let datastore = dumb_auth::InMemoryDatastore::new();
+            #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+            let datastore = dumb_auth::SqliteDatastore::connect(":memory:")
+                .await
+                .unwrap();
+
+            axum::serve(listener, dumb_auth::app(config, datastore))
+                .await
+                .unwrap();
         });
 
         Self {
