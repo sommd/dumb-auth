@@ -13,11 +13,16 @@ use tracing::error;
 
 use crate::{
     auth::Authenticator,
-    datastore::{DatastoreError, InMemoryDatastore},
+    datastore::{Datastore, DatastoreError},
     passwords::PasswordChecker,
     sessions::SessionStore,
 };
-pub use crate::{config::*, login::LoginForm, passwords::hash_password};
+
+#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+pub use crate::datastore::SqliteDatastore;
+pub use crate::{
+    config::*, datastore::InMemoryDatastore, login::LoginForm, passwords::hash_password,
+};
 
 mod auth;
 mod config;
@@ -77,12 +82,11 @@ impl IntoResponse for AppError {
     }
 }
 
-pub fn app(config: AppConfig) -> Router {
+pub fn app(config: AppConfig, datastore: impl Datastore + 'static) -> Router {
     let password_checker = Arc::new(PasswordChecker::default());
-    let datastore = Arc::new(InMemoryDatastore::new());
     let session_store = Arc::new(SessionStore::new(
         config.auth_config.session_expiry,
-        datastore,
+        Arc::new(datastore),
     ));
     let authenticator = Arc::new(Authenticator::new(
         config.public_path.clone(),

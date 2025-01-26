@@ -7,8 +7,12 @@ use std::{
 };
 
 use clap::{ArgAction, Args, Parser, Subcommand};
-use dumb_auth::{AppConfig, AuthConfig, Password, SessionExpiry};
+#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+use dumb_auth::SqliteDatastore;
+use dumb_auth::{AppConfig, AuthConfig, InMemoryDatastore, Password, SessionExpiry};
 use password_hash::PasswordHashString;
+#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use tokio::{net::TcpListener, runtime};
 use tracing::{error, info, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -157,12 +161,6 @@ struct RunArgs {
         hide_env = true
     )]
     pub session_cookie_domain: Option<String>,
-    #[arg(
-        long,
-        env = "DUMB_AUTH_SESSION_EXPIRY",
-        hide_env = true,
-        default_value_t = AuthConfig::DEFAULT_SESSION_EXPIRY
-    )]
     /// How long after creation a session should expire.
     ///
     /// One of:
@@ -174,7 +172,18 @@ struct RunArgs {
     /// up to the browser.
     ///
     /// A duration: A fixed duration, e.g. `7d`, `1d12h`, `1week 2days 3hours 4minutes`, etc.
+    #[arg(
+        long,
+        env = "DUMB_AUTH_SESSION_EXPIRY",
+        hide_env = true,
+        default_value_t = AuthConfig::DEFAULT_SESSION_EXPIRY
+    )]
     pub session_expiry: SessionExpiry,
+
+    // Datastore
+    #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+    #[arg(long, env = "DUMB_AUTH_SQLITE_DATASTORE", hide_env = true)]
+    pub sqlite_datastore: Option<String>,
 }
 
 fn parse_base_path(s: &str) -> Result<String, String> {
@@ -294,7 +303,7 @@ fn run(args: RunArgs) {
         process::exit(1);
     });
 
-    let app = dumb_auth::app(dumb_auth::AppConfig {
+    let config = dumb_auth::AppConfig {
         public_path: args.public_path,
         auth_config: AuthConfig {
             password,
@@ -305,7 +314,7 @@ fn run(args: RunArgs) {
             session_cookie_domain: args.session_cookie_domain,
             session_expiry: args.session_expiry,
         },
-    });
+    };
 
     let rt = {
         let mut builder = if args.single_thread {
@@ -326,10 +335,42 @@ fn run(args: RunArgs) {
     };
 
     rt.block_on(async {
+        #[cfg(not(any(feature = "sqlite", feature = "sqlite-unbundled")))]
+        let app = dumb_auth::app(config, InMemoryDatastore::new());
+        #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+        let app = match args.sqlite_datastore {
+            Some(datastore) => dumb_auth::app(config, open_sqlite_datastore(&datastore).await),
+            None => dumb_auth::app(config, InMemoryDatastore::new()),
+        };
+
         let listener = TcpListener::bind(&args.bind_addr).await.unwrap();
         info!("Listening for requests on http://{}", &args.bind_addr);
         axum::serve(listener, app).await.unwrap();
     });
+}
+
+#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
+async fn open_sqlite_datastore(datastore: &str) -> SqliteDatastore {
+    let options: SqliteConnectOptions = if datastore.starts_with("sqlite:") {
+        datastore.parse().unwrap_or_else(|e| {
+            error!("Error parsing SQLite datastore URI: {}", e);
+            process::exit(1);
+        })
+    } else {
+        SqliteConnectOptions::new()
+            .filename(datastore)
+            .create_if_missing(true)
+    };
+
+    let pool = SqlitePool::connect_with(options).await.unwrap_or_else(|e| {
+        error!("Error opening SQLite datastore: {}", e);
+        process::exit(1);
+    });
+
+    SqliteDatastore::init(pool).await.unwrap_or_else(|e| {
+        error!("Error initializing SQLite datastore: {}", e);
+        process::exit(1);
+    })
 }
 
 fn passwd(args: PasswdArgs) {

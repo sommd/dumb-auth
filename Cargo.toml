@@ -20,6 +20,7 @@ password-hash = "0.5.0"
 rand = "0.8.5"
 rpassword = "7.3.1"
 serde = { version = "1.0.217", features = ["derive"] }
+sqlx = { version = "0.8.3", default-features = false, features = ["macros", "migrate", "runtime-tokio"], optional = true }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = "2.0.11"
 time = "0.3.37"
@@ -34,6 +35,11 @@ reqwest = { version = "0.12.12", default-features = false, features = ["cookies"
 serial_test = "3.2.0"
 tokio = { version = "1.42.0", features = ["time"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
+
+[features]
+default = ["sqlite"]
+sqlite = ["dep:sqlx", "sqlx/sqlite"]
+sqlite-unbundled = ["dep:sqlx", "sqlx/sqlite-unbundled"]
 
 [lints.rust]
 unsafe_code = "forbid"
