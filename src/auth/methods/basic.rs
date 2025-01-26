@@ -7,6 +7,7 @@ use crate::{
     auth::{methods::AuthMethod, AuthResult},
     config::AuthConfig,
     passwords::PasswordChecker,
+    AppError,
 };
 
 pub struct BasicAuth {
@@ -29,20 +30,20 @@ impl AuthMethod for BasicAuth {
         auth_config: &AuthConfig,
         _original_uri: &str,
         headers: &HeaderMap,
-    ) -> AuthResult {
+    ) -> Result<AuthResult, AppError> {
         if let Some(authorization) = headers.typed_get::<Authorization<Basic>>() {
             if self
                 .password_checker
                 .check_password(authorization.password(), &auth_config.password)
                 .await
             {
-                return AuthResult::valid();
+                return Ok(AuthResult::valid());
             }
         }
 
-        AuthResult::invalid().with_header(
+        Ok(AuthResult::invalid().with_header(
             header::WWW_AUTHENTICATE,
             HeaderValue::from_static("Basic realm=\"dumb-auth\""),
-        )
+        ))
     }
 }

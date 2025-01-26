@@ -7,6 +7,7 @@ use crate::{
     auth::{methods::AuthMethod, AuthResult},
     config::AuthConfig,
     passwords::PasswordChecker,
+    AppError,
 };
 
 pub struct BearerAuth {
@@ -29,25 +30,25 @@ impl AuthMethod for BearerAuth {
         auth_config: &AuthConfig,
         _original_uri: &str,
         headers: &HeaderMap,
-    ) -> AuthResult {
+    ) -> Result<AuthResult, AppError> {
         if let Some(authorization) = headers.typed_get::<Authorization<Bearer>>() {
             if self
                 .password_checker
                 .check_password(authorization.token(), &auth_config.password)
                 .await
             {
-                AuthResult::valid()
+                Ok(AuthResult::valid())
             } else {
-                AuthResult::invalid().with_header(
+                Ok(AuthResult::invalid().with_header(
                     header::WWW_AUTHENTICATE,
                     HeaderValue::from_static("Bearer realm=\"dumb-auth\", error=\"invalid_token\""),
-                )
+                ))
             }
         } else {
-            AuthResult::invalid().with_header(
+            Ok(AuthResult::invalid().with_header(
                 header::WWW_AUTHENTICATE,
                 HeaderValue::from_static("Bearer realm=\"dumb-auth\""),
-            )
+            ))
         }
     }
 }

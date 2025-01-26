@@ -8,6 +8,7 @@ use crate::{
     auth::{methods::AuthMethod, AuthResult},
     config::AuthConfig,
     sessions::SessionStore,
+    AppError,
 };
 
 pub struct SessionAuth {
@@ -34,27 +35,27 @@ impl AuthMethod for SessionAuth {
         auth_config: &AuthConfig,
         original_uri: &str,
         headers: &HeaderMap,
-    ) -> AuthResult {
+    ) -> Result<AuthResult, AppError> {
         if let Some(cookie) = headers.typed_get::<Cookie>() {
             if let Some(session_token) = cookie.get(&auth_config.session_cookie_name) {
                 if self
                     .session_store
                     .get_valid_session(session_token)
-                    .await
+                    .await?
                     .is_some()
                 {
-                    return AuthResult::valid();
+                    return Ok(AuthResult::valid());
                 }
             }
         }
 
         if should_redirect(headers) {
             if let Some(location) = login_location(&self.public_path, original_uri) {
-                return AuthResult::invalid().with_header(header::LOCATION, location);
+                return Ok(AuthResult::invalid().with_header(header::LOCATION, location));
             }
         }
 
-        AuthResult::invalid()
+        Ok(AuthResult::invalid())
     }
 }
 
