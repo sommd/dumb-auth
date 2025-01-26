@@ -95,4 +95,4 @@ jobs:
           push: true
           tags: |
             sommd/${{ matrix.image }}:${{ github.ref_name }}
-            ${{ contains(github.ref_name, '-') && '' || format('sommd/{0}:latest', matrix.image) }}
+            ${{ !contains(github.ref_name, '-') && format('sommd/{0}:latest', matrix.image) || '' }}
