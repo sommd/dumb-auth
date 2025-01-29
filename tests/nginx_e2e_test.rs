@@ -1,4 +1,5 @@
 use std::{
+    env,
     process::{Child, Command},
     time::Duration,
 };
@@ -39,10 +40,8 @@ impl Sut {
         );
 
         let mut nginx = Command::new("nginx")
-            .args(&[
-                "-p",
-                concat!(env!("CARGO_MANIFEST_DIR"), "/examples/nginx/"),
-            ])
+            .arg("-p")
+            .arg(env::current_dir().unwrap().join("examples/nginx"))
             .args(["-c", "nginx.conf"])
             .spawn()
             .unwrap();
