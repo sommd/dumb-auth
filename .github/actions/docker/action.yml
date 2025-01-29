@@ -6,7 +6,7 @@ inputs:
     required: true
   platforms:
     description: The platforms to build for
-    default: linux/amd64
+    default: linux/amd64,linux/arm64
   tag:
     description: Tag for the image
     required: true
@@ -16,6 +16,9 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Setup QEMU
+      if: inputs.platforms != 'linux/amd64'
+      uses: docker/setup-qemu-action@v3
     - name: Setup buildx
       uses: docker/setup-buildx-action@v3
     - name: Download binaries
