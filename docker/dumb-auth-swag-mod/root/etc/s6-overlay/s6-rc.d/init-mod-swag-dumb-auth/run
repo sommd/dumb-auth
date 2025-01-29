@@ -14,3 +14,9 @@ fi
 # copy new samples
 cp /defaults/nginx/dumb-auth-location.conf.sample /config/nginx/dumb-auth-location.conf.sample
 cp /defaults/nginx/dumb-auth-server.conf.sample /config/nginx/dumb-auth-server.conf.sample
+
+# create config dir if it doesn't exist
+if [[ ! -d /config/dumb-auth ]]; then
+    mkdir /config/dumb-auth
+    chmod 700 /config/dumb-auth
+fi
