@@ -12,7 +12,7 @@ use dumb_auth::SqliteDatastore;
 use dumb_auth::{AppConfig, AuthConfig, InMemoryDatastore, Password, SessionExpiry};
 use password_hash::PasswordHashString;
 #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
-use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use tokio::{net::TcpListener, runtime};
 use tracing::{error, info, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -360,12 +360,19 @@ async fn open_sqlite_datastore(datastore: &str) -> SqliteDatastore {
         SqliteConnectOptions::new()
             .filename(datastore)
             .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
     };
 
-    let pool = SqlitePool::connect_with(options).await.unwrap_or_else(|e| {
-        error!("Error opening SQLite datastore: {}", e);
-        process::exit(1);
-    });
+    let pool = SqlitePoolOptions::new()
+        .min_connections(1)
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .unwrap_or_else(|e| {
+            error!("Error opening SQLite datastore: {}", e);
+            process::exit(1);
+        });
 
     SqliteDatastore::init(pool).await.unwrap_or_else(|e| {
         error!("Error initializing SQLite datastore: {}", e);
