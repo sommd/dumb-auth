@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::SystemTime};
 
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     config::SessionExpiry,
@@ -51,7 +52,7 @@ impl SessionStore {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Session {
     pub created: SystemTime,
 }

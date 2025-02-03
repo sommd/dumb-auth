@@ -16,6 +16,8 @@ use crate::{
     sessions::SessionStore,
 };
 
+#[cfg(feature = "lmdb")]
+pub use crate::datastore::LmdbDatastore;
 #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
 pub use crate::datastore::SqliteDatastore;
 pub use crate::{

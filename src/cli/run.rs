@@ -1,7 +1,12 @@
-use std::{fs, net::SocketAddr, path::PathBuf};
+use std::{
+    fs::{self, File},
+    net::SocketAddr,
+    path::PathBuf,
+};
 
 use clap::{ArgAction, Args};
 use dumb_auth::{AppConfig, AuthConfig, Datastore, InMemoryDatastore, Password, SessionExpiry};
+use heed::EnvFlags;
 use password_hash::PasswordHashString;
 use tokio::{net::TcpListener, runtime::Runtime};
 use tracing::info;
@@ -157,6 +162,9 @@ pub struct RunArgs {
     pub session_expiry: SessionExpiry,
 
     // Datastore
+    #[cfg(feature = "lmdb")]
+    #[arg(long, env = "DUMB_AUTH_LMDB_DATASTORE", hide_env = true)]
+    pub lmdb_datastore: Option<PathBuf>,
     #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
     #[arg(long, env = "DUMB_AUTH_SQLITE_DATASTORE", hide_env = true)]
     pub sqlite_datastore: Option<String>,
@@ -222,6 +230,28 @@ impl RunArgs {
     }
 
     pub async fn datastore(&self) -> Box<dyn Datastore> {
+        #[cfg(feature = "lmdb")]
+        if let Some(datastore) = &self.lmdb_datastore {
+            use dumb_auth::LmdbDatastore;
+            use heed::EnvOpenOptions;
+
+            File::create(datastore).unwrap_or_else(|e| fatal("creating LMDB datastore", e));
+
+            let env = unsafe {
+                EnvOpenOptions::new()
+                    .flags(EnvFlags::NO_SUB_DIR | EnvFlags::NO_META_SYNC)
+                    .map_size(1024 * 1024)
+                    .max_dbs(2)
+                    .open(datastore)
+            }
+            .unwrap_or_else(|e| fatal("opening LMDB datastore", e));
+
+            return Box::new(
+                LmdbDatastore::init(env)
+                    .unwrap_or_else(|e| fatal("initializing LMDB datastore", e)),
+            );
+        }
+
         #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
         if let Some(datastore) = &self.sqlite_datastore {
             use dumb_auth::SqliteDatastore;
@@ -286,7 +316,7 @@ pub fn run(args: RunArgs) {
         let config = dumb_auth::AppConfig {
             public_path: args.public_path,
             auth_config: AuthConfig {
-                password: password,
+                password,
                 allow_basic: args.allow_basic,
                 allow_bearer: args.allow_bearer,
                 allow_session: args.allow_session,
