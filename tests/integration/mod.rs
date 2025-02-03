@@ -44,14 +44,26 @@ impl Sut {
             .unwrap();
 
         let handle = tokio::spawn(async {
-            #[cfg(not(any(feature = "sqlite", feature = "sqlite-unbundled")))]
+            #[allow(unused_variables)]
             let datastore = dumb_auth::InMemoryDatastore::new();
+
+            #[allow(unused_variables)]
+            #[cfg(feature = "lmdb")]
+            let datastore = dumb_auth::LmdbDatastore::init(unsafe {
+                heed::EnvOpenOptions::new()
+                    .map_size(1024 * 1024)
+                    .max_dbs(2)
+                    .open(tempfile::tempdir().unwrap())
+                    .unwrap()
+            })
+            .unwrap();
+
             #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
             let datastore = dumb_auth::SqliteDatastore::connect(":memory:")
                 .await
                 .unwrap();
 
-            axum::serve(listener, dumb_auth::app(config, datastore))
+            axum::serve(listener, dumb_auth::app(config, Box::new(datastore)))
                 .await
                 .unwrap();
         });
