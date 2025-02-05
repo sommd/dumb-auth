@@ -1,4 +1,0 @@
-CREATE TABLE sessions(
-    token TEXT PRIMARY KEY NOT NULL,
-    created TIMESTAMP NOT NULL
-);

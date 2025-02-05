@@ -1,12 +1,7 @@
-use std::{
-    fs::{self, File},
-    net::SocketAddr,
-    path::PathBuf,
-};
+use std::{fs, net::SocketAddr, path::PathBuf};
 
 use clap::{ArgAction, Args};
 use dumb_auth::{AppConfig, AuthConfig, Datastore, InMemoryDatastore, Password, SessionExpiry};
-use heed::EnvFlags;
 use password_hash::PasswordHashString;
 use tokio::{net::TcpListener, runtime::Runtime};
 use tracing::info;
@@ -165,9 +160,6 @@ pub struct RunArgs {
     #[cfg(feature = "lmdb")]
     #[arg(long, env = "DUMB_AUTH_LMDB_DATASTORE", hide_env = true)]
     pub lmdb_datastore: Option<PathBuf>,
-    #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
-    #[arg(long, env = "DUMB_AUTH_SQLITE_DATASTORE", hide_env = true)]
-    pub sqlite_datastore: Option<String>,
 }
 
 impl RunArgs {
@@ -233,9 +225,9 @@ impl RunArgs {
         #[cfg(feature = "lmdb")]
         if let Some(datastore) = &self.lmdb_datastore {
             use dumb_auth::LmdbDatastore;
-            use heed::EnvOpenOptions;
+            use heed::{EnvFlags, EnvOpenOptions};
 
-            File::create(datastore).unwrap_or_else(|e| fatal("creating LMDB datastore", e));
+            fs::File::create(datastore).unwrap_or_else(|e| fatal("creating LMDB datastore", e));
 
             let env = unsafe {
                 EnvOpenOptions::new()
@@ -249,39 +241,6 @@ impl RunArgs {
             return Box::new(
                 LmdbDatastore::init(env)
                     .unwrap_or_else(|e| fatal("initializing LMDB datastore", e)),
-            );
-        }
-
-        #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
-        if let Some(datastore) = &self.sqlite_datastore {
-            use dumb_auth::SqliteDatastore;
-            use sqlx::sqlite::{
-                SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
-            };
-
-            let options = if datastore.starts_with("sqlite:") {
-                datastore
-                    .parse()
-                    .unwrap_or_else(|e| fatal("parsing SQLite datastore URI", e))
-            } else {
-                SqliteConnectOptions::new()
-                    .filename(datastore)
-                    .create_if_missing(true)
-            }
-            .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Normal);
-
-            let pool = SqlitePoolOptions::new()
-                .min_connections(1)
-                .max_connections(1)
-                .connect_with(options)
-                .await
-                .unwrap_or_else(|e| fatal("opening SQLite datastore", e));
-
-            return Box::new(
-                SqliteDatastore::init(pool)
-                    .await
-                    .unwrap_or_else(|e| fatal("initializing SQLite datastore", e)),
             );
         }
 

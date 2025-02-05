@@ -21,7 +21,6 @@ password-hash = "0.5.0"
 rand = "0.8.5"
 rpassword = "7.3.1"
 serde = { version = "1.0.217", features = ["derive"] }
-sqlx = { version = "0.8.3", default-features = false, features = ["macros", "migrate", "runtime-tokio"], optional = true }
 subtle = { version = "2.6.1", default-features = false }
 thiserror = "2.0.11"
 time = "0.3.37"
@@ -39,10 +38,8 @@ tokio = { version = "1.42.0", features = ["time"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 
 [features]
-default = ["lmdb", "sqlite"]
+default = ["lmdb"]
 lmdb = ["dep:heed"]
-sqlite = ["dep:sqlx", "sqlx/sqlite"]
-sqlite-unbundled = ["dep:sqlx", "sqlx/sqlite-unbundled"]
 
 [profile.release]
 codegen-units = 1

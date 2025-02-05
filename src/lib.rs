@@ -18,8 +18,6 @@ use crate::{
 
 #[cfg(feature = "lmdb")]
 pub use crate::datastore::LmdbDatastore;
-#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
-pub use crate::datastore::SqliteDatastore;
 pub use crate::{
     config::*,
     datastore::{Datastore, InMemoryDatastore},

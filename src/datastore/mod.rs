@@ -6,14 +6,10 @@ use crate::sessions::Session;
 #[cfg(feature = "lmdb")]
 pub use self::lmdb::LmdbDatastore;
 pub use self::memory::InMemoryDatastore;
-#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
-pub use self::sqlite::SqliteDatastore;
 
 #[cfg(feature = "lmdb")]
 mod lmdb;
 mod memory;
-#[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
-mod sqlite;
 
 #[async_trait]
 pub trait Datastore: Send + Sync {
@@ -30,9 +26,6 @@ pub trait Datastore: Send + Sync {
 
 #[derive(Debug, Error)]
 pub enum DatastoreError {
-    #[cfg(any(feature = "sqlite", feature = "sqlite-unbundled"))]
-    #[error("{0}")]
-    SqlxError(#[from] sqlx::Error),
     #[cfg(feature = "lmdb")]
     #[error("{0}")]
     HeedError(#[from] heed::Error),
