@@ -11,16 +11,11 @@ use thiserror::Error;
 use tower_http::trace::TraceLayer;
 use tracing::error;
 
-use crate::{
-    auth::Authenticator, datastore::DatastoreError, passwords::PasswordChecker,
-    sessions::SessionStore,
-};
+use crate::{auth::Authenticator, passwords::PasswordChecker, sessions::SessionManager};
 
-#[cfg(feature = "lmdb")]
-pub use crate::datastore::LmdbDatastore;
 pub use crate::{
     config::*,
-    datastore::{Datastore, InMemoryDatastore},
+    datastore::{Datastore, DatastoreError},
     login::LoginForm,
     passwords::hash_password,
 };
@@ -37,7 +32,7 @@ struct AppState {
     config: AppConfig,
     authenticator: Arc<Authenticator>,
     password_checker: Arc<PasswordChecker>,
-    session_store: Arc<SessionStore>,
+    session_manager: Arc<SessionManager>,
 }
 
 impl FromRef<AppState> for AuthConfig {
@@ -58,9 +53,9 @@ impl FromRef<AppState> for Arc<PasswordChecker> {
     }
 }
 
-impl FromRef<AppState> for Arc<SessionStore> {
+impl FromRef<AppState> for Arc<SessionManager> {
     fn from_ref(input: &AppState) -> Self {
-        input.session_store.clone()
+        input.session_manager.clone()
     }
 }
 
@@ -83,16 +78,16 @@ impl IntoResponse for AppError {
     }
 }
 
-pub fn app(config: AppConfig, datastore: Box<dyn Datastore>) -> Router {
+pub fn app(config: AppConfig, datastore: Datastore) -> Router {
     let password_checker = Arc::new(PasswordChecker::default());
-    let session_store = Arc::new(SessionStore::new(
+    let session_manager = Arc::new(SessionManager::new(
         config.auth_config.session_expiry,
         Arc::from(datastore),
     ));
     let authenticator = Arc::new(Authenticator::new(
         config.public_path.clone(),
         password_checker.clone(),
-        session_store.clone(),
+        session_manager.clone(),
     ));
 
     Router::new()
@@ -105,7 +100,7 @@ pub fn app(config: AppConfig, datastore: Box<dyn Datastore>) -> Router {
             config,
             authenticator,
             password_checker,
-            session_store,
+            session_manager,
         })
         .layer(TraceLayer::new_for_http())
 }

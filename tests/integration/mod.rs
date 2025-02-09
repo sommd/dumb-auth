@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dumb_auth::{AppConfig, AuthConfig, Password};
+use dumb_auth::{AppConfig, AuthConfig, Datastore, Password};
 use reqwest::{cookie, Client, Method, RequestBuilder, Url};
 use tokio::{net::TcpListener, task::JoinHandle};
 
@@ -44,20 +44,10 @@ impl Sut {
             .unwrap();
 
         let handle = tokio::spawn(async {
-            #[allow(unused_variables)]
-            let datastore = dumb_auth::InMemoryDatastore::new();
+            let dir = tempfile::tempdir().unwrap();
+            let datastore = Datastore::open(dir.path().join("dumb-auth.mdb")).unwrap();
 
-            #[cfg(feature = "lmdb")]
-            let datastore = dumb_auth::LmdbDatastore::init(unsafe {
-                heed::EnvOpenOptions::new()
-                    .map_size(1024 * 1024)
-                    .max_dbs(2)
-                    .open(tempfile::tempdir().unwrap())
-                    .unwrap()
-            })
-            .unwrap();
-
-            axum::serve(listener, dumb_auth::app(config, Box::new(datastore)))
+            axum::serve(listener, dumb_auth::app(config, datastore))
                 .await
                 .unwrap();
         });

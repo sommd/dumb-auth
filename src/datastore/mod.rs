@@ -1,38 +1,65 @@
-use async_trait::async_trait;
+use std::path::Path;
+
 use thiserror::Error;
 
-use crate::sessions::Session;
+use crate::sessions::{SessionData, SessionId};
 
-#[cfg(feature = "lmdb")]
-pub use self::lmdb::LmdbDatastore;
-pub use self::memory::InMemoryDatastore;
+use self::lmdb::LmdbDatastore;
+use self::memory::InMemoryDatastore;
 
-#[cfg(feature = "lmdb")]
 mod lmdb;
 mod memory;
 
-#[async_trait]
-pub trait Datastore: Send + Sync {
-    async fn store_session(
-        &self,
-        token: &str,
-        session: &Session,
-    ) -> Result<Result<(), StoreSessionError>, DatastoreError>;
+type Result<T> = std::result::Result<T, DatastoreError>;
 
-    async fn get_session(&self, token: &str) -> Result<Option<Session>, DatastoreError>;
+pub struct Datastore(DatastoreInner);
 
-    async fn delete_session(&self, token: &str) -> Result<bool, DatastoreError>;
+enum DatastoreInner {
+    InMemory(InMemoryDatastore),
+    Lmdb(LmdbDatastore),
+}
+
+impl Datastore {
+    pub fn new_in_memory() -> Self {
+        Self(DatastoreInner::InMemory(InMemoryDatastore::new()))
+    }
+
+    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        Ok(Self(DatastoreInner::Lmdb(LmdbDatastore::open(
+            path.as_ref(),
+        )?)))
+    }
+
+    pub(crate) async fn create_session(&self, data: SessionData) -> Result<SessionId> {
+        Ok(match &self.0 {
+            DatastoreInner::InMemory(inner) => inner.create_session(data).await,
+            DatastoreInner::Lmdb(inner) => inner.create_session(data).await?,
+        })
+    }
+
+    pub(crate) async fn read_session(&self, id: SessionId) -> Result<Option<SessionData>> {
+        Ok(match &self.0 {
+            DatastoreInner::InMemory(inner) => inner.read_session(id).await,
+            DatastoreInner::Lmdb(inner) => inner.read_session(id).await?,
+        })
+    }
+
+    pub(crate) async fn delete_session(&self, id: SessionId) -> Result<bool> {
+        Ok(match &self.0 {
+            DatastoreInner::InMemory(inner) => inner.delete_session(id).await,
+            DatastoreInner::Lmdb(inner) => inner.delete_session(id).await?,
+        })
+    }
 }
 
 #[derive(Debug, Error)]
 pub enum DatastoreError {
-    #[cfg(feature = "lmdb")]
     #[error("{0}")]
     HeedError(#[from] heed::Error),
-}
-
-#[derive(Clone, Copy, Debug, Error)]
-pub enum StoreSessionError {
-    #[error("already exists")]
-    AlreadyExists,
+    #[error("file does not appear to be a dumb-auth datastore")]
+    UnrecognizedFormat,
+    #[error("unknown datastore version: {0}")]
+    UnknownVersion(u64),
+    #[error("datastore is corrupted")]
+    Corrupt,
 }

@@ -16,7 +16,7 @@ use tracing::debug;
 use crate::{
     config::{AuthConfig, SessionExpiry},
     passwords::PasswordChecker,
-    sessions::SessionStore,
+    sessions::{SessionManager, SessionToken},
 };
 
 static LOGIN_HTML: &str = include_str!("../frontend/login.html");
@@ -33,7 +33,7 @@ pub struct LoginForm {
 pub async fn handle_post_login(
     State(auth_config): State<AuthConfig>,
     State(password_checker): State<Arc<PasswordChecker>>,
-    State(session_store): State<Arc<SessionStore>>,
+    State(session_manager): State<Arc<SessionManager>>,
     cookie_jar: CookieJar,
     Json(form): Json<LoginForm>,
 ) -> axum::response::Result<Response> {
@@ -47,15 +47,17 @@ pub async fn handle_post_login(
 
     debug!("Login: valid");
 
-    let (session_token, _) = session_store.create_session().await?;
+    let session_token = session_manager.create_session().await?;
     let session_cookie = create_session_cookie(&auth_config, session_token);
 
     Ok((cookie_jar.add(session_cookie.into_owned()), StatusCode::OK).into_response())
 }
 
-fn create_session_cookie(auth_config: &AuthConfig, session_token: String) -> Cookie<'static> {
-    let mut session_cookie =
-        Cookie::<'static>::new(auth_config.session_cookie_name.clone(), session_token);
+fn create_session_cookie(auth_config: &AuthConfig, session_token: SessionToken) -> Cookie<'static> {
+    let mut session_cookie = Cookie::<'static>::new(
+        auth_config.session_cookie_name.clone(),
+        session_token.encode(),
+    );
 
     session_cookie.set_path("/");
     session_cookie.set_same_site(SameSite::Lax);

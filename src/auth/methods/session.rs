@@ -7,20 +7,20 @@ use tracing::{error, warn};
 use crate::{
     auth::{methods::AuthMethod, AuthResult},
     config::AuthConfig,
-    sessions::SessionStore,
+    sessions::SessionManager,
     AppError,
 };
 
 pub struct SessionAuth {
     public_path: String,
-    session_store: Arc<SessionStore>,
+    session_manager: Arc<SessionManager>,
 }
 
 impl SessionAuth {
-    pub fn new(public_path: String, session_store: Arc<SessionStore>) -> Self {
+    pub fn new(public_path: String, session_manager: Arc<SessionManager>) -> Self {
         Self {
             public_path,
-            session_store,
+            session_manager,
         }
     }
 }
@@ -38,12 +38,7 @@ impl AuthMethod for SessionAuth {
     ) -> Result<AuthResult, AppError> {
         if let Some(cookie) = headers.typed_get::<Cookie>() {
             if let Some(session_token) = cookie.get(&auth_config.session_cookie_name) {
-                if self
-                    .session_store
-                    .get_valid_session(session_token)
-                    .await?
-                    .is_some()
-                {
+                if self.session_manager.check_session(session_token).await? {
                     return Ok(AuthResult::valid());
                 }
             }

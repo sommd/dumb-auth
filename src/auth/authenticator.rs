@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::http::HeaderMap;
 use tracing::{debug, instrument};
 
-use crate::{passwords::PasswordChecker, sessions::SessionStore, AppError, AuthConfig};
+use crate::{passwords::PasswordChecker, sessions::SessionManager, AppError, AuthConfig};
 
 use super::{
     methods::{AuthMethod, BasicAuth, BearerAuth, SessionAuth},
@@ -20,12 +20,12 @@ impl Authenticator {
     pub fn new(
         public_path: String,
         password_checker: Arc<PasswordChecker>,
-        session_store: Arc<SessionStore>,
+        session_manager: Arc<SessionManager>,
     ) -> Self {
         Self {
             basic: BasicAuth::new(password_checker.clone()),
             bearer: BearerAuth::new(password_checker),
-            session: SessionAuth::new(public_path, session_store),
+            session: SessionAuth::new(public_path, session_manager),
         }
     }
 

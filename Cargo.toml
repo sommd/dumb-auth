@@ -10,13 +10,14 @@ publish = false
 
 [dependencies]
 argon2 = "0.5.3"
-async-trait = "0.1.85"
 axum = { version = "0.8.1", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
 axum-extra = { version = "0.10.0", default-features = false, features = ["cookie", "typed-header"] }
+base64ct = { version = "1.6.0", features = ["std"] }
+bincode = "1.3.3"
 clap = { version = "4.5.23", features = ["derive", "env"] }
 duration-str = { version = "0.12.0", default-features = false, features = ["serde", "time"] }
 form_urlencoded = "1.2.1"
-heed = { version = "0.21.0", default-features = false, features = ["serde-bincode"], optional = true }
+heed = { version = "0.21.0", default-features = false, features = ["serde-bincode"] }
 password-hash = "0.5.0"
 rand = "0.8.5"
 rpassword = "7.3.1"
@@ -37,12 +38,7 @@ tempfile = "3.16.0"
 tokio = { version = "1.42.0", features = ["time"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 
-[features]
-default = ["lmdb"]
-lmdb = ["dep:heed"]
-
 [profile.release]
 codegen-units = 1
 lto = true
-panic = "abort"
 strip = true
