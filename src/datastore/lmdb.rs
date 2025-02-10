@@ -3,8 +3,9 @@ use std::{fs::File, path::Path};
 use heed::{
     byteorder::{BigEndian, NativeEndian},
     types::{SerdeBincode, Str, U64},
-    Database, Env, EnvFlags, EnvOpenOptions,
+    Database, Env, EnvFlags, EnvOpenOptions, RoTxn, RwTxn,
 };
+use tokio::task::spawn_blocking;
 
 use crate::sessions::{SessionData, SessionId};
 
@@ -114,37 +115,56 @@ impl LmdbDatastore {
     }
 
     pub async fn create_session(&self, data: SessionData) -> Result<SessionId> {
-        let mut wtxn = self.env.write_txn()?;
+        let default = self.default;
+        let sessions = self.sessions;
+        self.write(move |wtxn| {
+            // Generate ID
+            let id = default
+                .get(wtxn, Self::SESSION_ID_COUNTER_KEY)?
+                .ok_or(DatastoreError::Corrupt)?;
+            default.put(wtxn, Self::SESSION_ID_COUNTER_KEY, &(id + 1))?;
 
-        // Generate ID
-        let id = self
-            .default
-            .get(&wtxn, Self::SESSION_ID_COUNTER_KEY)?
-            .ok_or(DatastoreError::Corrupt)?;
-        self.default
-            .put(&mut wtxn, Self::SESSION_ID_COUNTER_KEY, &(id + 1))?;
+            // Write session
+            sessions.put(wtxn, &id, &data)?;
 
-        // Write session
-        self.sessions.put(&mut wtxn, &id, &data)?;
-
-        wtxn.commit()?;
-
-        Ok(SessionId(id))
+            Ok(SessionId(id))
+        })
+        .await
     }
 
     pub async fn read_session(&self, id: SessionId) -> Result<Option<SessionData>> {
-        let rtxn = self.env.read_txn()?;
-
-        Ok(self.sessions.get(&rtxn, &id.0)?)
+        let sessions = self.sessions;
+        self.read(move |rtxn| Ok(sessions.get(rtxn, &id.0)?)).await
     }
 
     pub async fn delete_session(&self, id: SessionId) -> Result<bool> {
-        let mut wtxn = self.env.write_txn()?;
+        let sessions = self.sessions;
+        self.write(move |wtxn| Ok(sessions.delete(wtxn, &id.0)?))
+            .await
+    }
 
-        let result = self.sessions.delete(&mut wtxn, &id.0)?;
+    async fn read<T: Send + 'static>(
+        &self,
+        op: impl FnOnce(&RoTxn) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let rtxn = self.env.read_txn()?;
+        let ret = op(&rtxn)?;
+        rtxn.commit()?;
+        Ok(ret)
+    }
 
-        wtxn.commit()?;
-
-        Ok(result)
+    async fn write<T: Send + 'static>(
+        &self,
+        op: impl FnOnce(&mut RwTxn) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let env = self.env.clone();
+        spawn_blocking(move || {
+            let mut wtxn = env.write_txn()?;
+            let ret = op(&mut wtxn)?;
+            wtxn.commit()?;
+            Ok(ret)
+        })
+        .await
+        .unwrap()
     }
 }
