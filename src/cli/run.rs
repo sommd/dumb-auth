@@ -9,9 +9,9 @@ use tracing::info;
 use super::common::{die, fatal};
 
 #[derive(Args, Debug, PartialEq)]
+#[command(next_line_help = true)]
 pub struct RunArgs {
-    // Server
-    /// The IP address and port to handle requests on.
+    /// The IP address and port to listen on.
     #[arg(
         short,
         long,
@@ -20,7 +20,7 @@ pub struct RunArgs {
         default_value = "0.0.0.0:3862"
     )]
     pub bind_addr: SocketAddr,
-    /// The base path for public routes. Must start with `/`.
+    /// The base path for public routes.
     #[arg(
         long,
         env = "DUMB_AUTH_PUBLIC_PATH",
@@ -30,24 +30,27 @@ pub struct RunArgs {
     )]
     pub public_path: String,
 
-    // Runtime
-    /// Number of worker threads to use. 0 to detect and use the number of CPU cores/threads (the
-    /// default).
+    /// Number of worker threads to use, or 0 to # of cores.
+    ///
+    /// Note: additional threads may still be spawned if using `--datastore`.
     #[arg(
+        help_heading = "Runtime",
         short = 'T',
         long,
         env = "DUMB_AUTH_THREADS",
         hide_env = true,
         default_value_t = 0,
-        hide_default_value = true,
         group = "threads_arg"
     )]
     pub threads: usize,
-    /// Use only a single thread with no workers.
+    /// Don't spawn any worker threads.
     ///
     /// This should use much less memory and can still handle multiple requests concurrently, but
-    /// may not be quite as performant as using '--threads'.
+    /// may not be quite as performant as using `--threads`.
+    ///
+    /// Note: additional threads may still be spawned if using `--datastore`.
     #[arg(
+        help_heading = "Runtime",
         long,
         env = "DUMB_AUTH_SINGLE_THREAD",
         hide_env = true,
@@ -55,9 +58,9 @@ pub struct RunArgs {
     )]
     pub single_thread: bool,
 
-    // Password
-    /// The password (in plain text) used to authenticate.
+    /// The password used to authenticate.
     #[arg(
+        help_heading = "Password",
         long,
         env = "DUMB_AUTH_PASSWORD",
         hide_env = true,
@@ -65,49 +68,65 @@ pub struct RunArgs {
         required = true
     )]
     pub password: Option<String>,
-    /// A file containing the password (in plain text) used to authenticate.
+    /// File containing the password used to authenticate.
     #[arg(
+        help_heading = "Password",
         long,
         env = "DUMB_AUTH_PASSWORD_FILE",
         hide_env = true,
-        group = "password_arg",
-        required = true
+        group = "password_arg"
     )]
     pub password_file: Option<PathBuf>,
-    /// The hash of the password used to authenticate. Use the 'passwd' subcommand to generate the
-    /// hash.
+    /// Hash of the password used to authenticate.
+    ///
+    /// Use the `passwd` subcommand to generate the hash.
     #[arg(
+        help_heading = "Password",
         long,
         env = "DUMB_AUTH_PASSWORD_HASH",
         hide_env = true,
-        group = "password_arg",
-        required = true
+        group = "password_arg"
     )]
     pub password_hash: Option<String>,
-    /// A file containing the hash of the password used to authenticate. Use the 'passwd' subcommand
-    /// to generate the hash.
+    /// File containing the hash of the password used to authenticate.
     #[arg(
+        help_heading = "Password",
         long,
         env = "DUMB_AUTH_PASSWORD_HASH_FILE",
         hide_env = true,
-        group = "password_arg",
-        required = true
+        group = "password_arg"
     )]
     pub password_hash_file: Option<PathBuf>,
 
-    // Methods
-    /// Support HTTP Basic authentication.
-    #[arg(long, env = "DUMB_AUTH_ALLOW_BASIC", hide_env = true)]
-    pub allow_basic: bool,
-    /// Support HTTP Bearer token authentication.
-    #[arg(long, env = "DUMB_AUTH_ALLOW_BEARER", hide_env = true)]
-    pub allow_bearer: bool,
-    /// Support session (interactive) authentication.
+    /// Allow using HTTP Basic authentication to authenticate.
+    ///
+    /// When authenticating with HTTP Basic authentication the username is ignored (i.e. it can be
+    /// anything), only the password is checked.
     #[arg(
+        help_heading = "Auth Methods",
+        long,
+        env = "DUMB_AUTH_ALLOW_BASIC",
+        hide_env = true
+    )]
+    pub allow_basic: bool,
+    /// Allow using HTTP Bearer tokens to authenticate.
+    ///
+    /// The value of the Bearer token should be the password used to authenticate.
+    #[arg(
+        help_heading = "Auth Methods",
+        long,
+        env = "DUMB_AUTH_ALLOW_BEARER",
+        hide_env = true
+    )]
+    pub allow_bearer: bool,
+    /// Allow using sessions to authenticate interactively.
+    #[arg(
+        help_heading = "Auth Methods",
         long,
         env = "DUMB_AUTH_ALLOW_SESSION",
         hide_env = true,
         action = ArgAction::Set,
+        hide_possible_values = true,
         default_value_t = true,
         num_args = 0..=1,
         require_equals = true,
@@ -115,22 +134,23 @@ pub struct RunArgs {
     )]
     pub allow_session: bool,
 
-    // Session
-    /// The name of the session cookie to use.
+    /// Name of the session cookie.
     #[arg(
+        help_heading = "Session Config",
         long,
         env = "DUMB_AUTH_SESSION_COOKIE_NAME",
         hide_env = true,
         default_value = AuthConfig::DEFAULT_SESSION_COOKIE_NAME
     )]
     pub session_cookie_name: String,
-    /// The domain to set the session cookie on.
+    /// Parent domain to set the session cookie on.
     ///
-    /// Leave this unset if you only have a single domain,
-    /// or you want each domain to have a separate session. Otherwise set it to your parent domain,
-    /// e.g. `example.com`, to have sessions shared across all subdomains, i.e. if you want
-    /// `a.example.com` and `b.example.com` to share the same session.
+    /// Leave this unset if you only have a single domain, or you want each domain to have a
+    /// separate session. Otherwise set it to your parent domain, e.g. `example.com`, to have
+    /// sessions shared across all subdomains, i.e. if you want `a.example.com` and `b.example.com`
+    /// to share the same session.
     #[arg(
+        help_heading = "Session Config",
         short = 'd',
         long,
         env = "DUMB_AUTH_SESSION_COOKIE_DOMAIN",
@@ -147,8 +167,9 @@ pub struct RunArgs {
     /// "session": Sessions expire when the browser decides that it's "session" has ended. This is
     /// up to the browser.
     ///
-    /// A duration: A fixed duration, e.g. `7d`, `1d12h`, `1week 2days 3hours 4minutes`, etc.
+    /// A duration: A fixed duration, e.g. "7d", "1d12h", "1week 2days 3hours 4minutes", etc.
     #[arg(
+        help_heading = "Session Config",
         long,
         env = "DUMB_AUTH_SESSION_EXPIRY",
         hide_env = true,
@@ -156,8 +177,19 @@ pub struct RunArgs {
     )]
     pub session_expiry: SessionExpiry,
 
-    // Datastore
-    #[arg(long, env = "DUMB_AUTH_DATASTORE", hide_env = true)]
+    /// File to store sessions.
+    ///
+    /// If not set, sessions will only be kept in memory and will be lost when dumb-auth is
+    /// restarted. Using a datastore allows sessions to be remembered across restarts.
+    ///
+    /// Warning: The file may contain sensitive data (but not passwords). Make sure the correct
+    /// permissions are set so that the data can't be read by other processes or users.
+    #[arg(
+        help_heading = "Datastore",
+        long,
+        env = "DUMB_AUTH_DATASTORE",
+        hide_env = true
+    )]
     pub datastore: Option<PathBuf>,
 }
 
