@@ -2,9 +2,9 @@ use axum::http::HeaderMap;
 
 use crate::{auth::AuthResult, AppError, AuthConfig};
 
-pub use basic::BasicAuth;
-pub use bearer::BearerAuth;
-pub use session::SessionAuth;
+pub use self::basic::BasicAuth;
+pub use self::bearer::BearerAuth;
+pub use self::session::SessionAuth;
 
 mod basic;
 mod bearer;

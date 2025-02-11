@@ -5,6 +5,7 @@ use thiserror::Error;
 use crate::sessions::{SessionData, SessionId};
 
 use self::lmdb::LmdbDatastore;
+pub use self::lmdb::{ReadMode, WriteMode};
 use self::memory::InMemoryDatastore;
 
 mod lmdb;
@@ -27,6 +28,18 @@ impl Datastore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         Ok(Self(DatastoreInner::Lmdb(LmdbDatastore::open(
             path.as_ref(),
+        )?)))
+    }
+
+    pub fn open_with(
+        path: impl AsRef<Path>,
+        read_mode: ReadMode,
+        write_mode: WriteMode,
+    ) -> Result<Self> {
+        Ok(Self(DatastoreInner::Lmdb(LmdbDatastore::open_with(
+            path.as_ref(),
+            read_mode,
+            write_mode,
         )?)))
     }
 

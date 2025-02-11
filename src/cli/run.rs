@@ -1,7 +1,7 @@
 use std::{fs, net::SocketAddr, path::PathBuf};
 
 use clap::{ArgAction, Args};
-use dumb_auth::{AppConfig, AuthConfig, Datastore, Password, SessionExpiry};
+use dumb_auth::{AppConfig, AuthConfig, Datastore, Password, ReadMode, SessionExpiry, WriteMode};
 use password_hash::PasswordHashString;
 use tokio::{net::TcpListener, runtime::Runtime};
 use tracing::info;
@@ -191,6 +191,24 @@ pub struct RunArgs {
         hide_env = true
     )]
     pub datastore: Option<PathBuf>,
+    #[arg(
+        help_heading = "Datastore",
+        long,
+        env = "DUMB_AUTH_DATASTORE_READ_MODE",
+        hide_env = true,
+        value_enum,
+        default_value_t = Default::default(),
+    )]
+    pub datastore_read_mode: ReadMode,
+    #[arg(
+        help_heading = "Datastore",
+        long,
+        env = "DUMB_AUTH_DATASTORE_WRITE_MODE",
+        hide_env = true,
+        value_enum,
+        default_value_t = Default::default(),
+    )]
+    pub datastore_write_mode: WriteMode,
 }
 
 impl RunArgs {
@@ -254,7 +272,10 @@ impl RunArgs {
 
     pub async fn datastore(&self) -> Datastore {
         match &self.datastore {
-            Some(path) => Datastore::open(path).unwrap_or_else(|e| fatal("opening datastore", e)),
+            Some(path) => {
+                Datastore::open_with(path, self.datastore_read_mode, self.datastore_write_mode)
+                    .unwrap_or_else(|e| fatal("opening datastore", e))
+            }
             None => Datastore::new_in_memory(),
         }
     }

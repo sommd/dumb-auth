@@ -15,7 +15,7 @@ use crate::{auth::Authenticator, passwords::PasswordChecker, sessions::SessionMa
 
 pub use crate::{
     config::*,
-    datastore::{Datastore, DatastoreError},
+    datastore::{Datastore, DatastoreError, ReadMode, WriteMode},
     login::LoginForm,
     passwords::hash_password,
 };

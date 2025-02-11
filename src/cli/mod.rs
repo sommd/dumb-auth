@@ -142,14 +142,14 @@ mod tests {
         // Does not require run args
         assert_eq!(
             sut(&["passwd"]).unwrap().cmd.unwrap(),
-            Cmd::Passwd(PasswdArgs { output: "-".into() })
+            Cmd::Passwd(PasswdArgs { output: None })
         );
 
         // Accepts outfile
         assert_eq!(
             sut(&["passwd", "outfile"]).unwrap().cmd.unwrap(),
             Cmd::Passwd(PasswdArgs {
-                output: "outfile".into()
+                output: Some("outfile".into())
             })
         );
 
