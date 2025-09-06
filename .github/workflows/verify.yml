@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install full Rust toolchain
+        run: rustup set profile default
       - name: Check formatting
         run: cargo fmt --check
       - name: Test
