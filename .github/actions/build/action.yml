@@ -19,19 +19,20 @@ runs:
     - name: Set version
       shell: bash
       run: sed -i 's/^version = "[^"]*"/version = "${{ inputs.version }}"/' Cargo.toml
-    - name: Install cross
+    - name: Install target
       shell: bash
-      run: curl -sSfL "https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-gnu.tar.gz" | tar --directory /usr/local/bin --gunzip --extract
-    - name: Setup QEMU
-      if: runner.arch == 'X64' && !startsWith(inputs.target, 'x86_64')
-      uses: docker/setup-qemu-action@v3
+      run: rustup target add '${{ inputs.target }}'
+    - name: Install musl-gcc
+      if: endsWith(inputs.target, '-musl')
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y musl-tools
     - name: Build
       shell: bash
-      run: cross build --profile '${{ inputs.profile }}' --target '${{ inputs.target }}'
+      run: cargo build --profile '${{ inputs.profile }}' --target '${{ inputs.target }}'
     - name: Test
       if: ${{ inputs.test == 'true' }}
       shell: bash
-      run: cross test --profile '${{ inputs.profile }}' --target '${{ inputs.target }}'
+      run: cargo test --profile '${{ inputs.profile }}' --target '${{ inputs.target }}'
     - name: Rename binary
       shell: bash
       run: mv 'target/${{ inputs.target }}/${{ inputs.profile }}/dumb-auth' 'dumb-auth-${{ inputs.target }}'
