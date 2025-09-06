@@ -10,33 +10,33 @@ publish = false
 
 [dependencies]
 argon2 = "0.5.3"
-axum = { version = "0.8.1", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
-axum-extra = { version = "0.10.0", default-features = false, features = ["cookie", "typed-header"] }
-base64ct = { version = "1.6.0", features = ["std"] }
+axum = { version = "0.8.4", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+axum-extra = { version = "0.10.1", default-features = false, features = ["cookie", "typed-header"] }
+base64ct = { version = "1.8.0", features = ["std"] }
 bincode = "1.3.3"
-clap = { version = "4.5.23", features = ["derive", "env"] }
-duration-str = { version = "0.12.0", default-features = false, features = ["serde", "time"] }
-form_urlencoded = "1.2.1"
-heed = { version = "0.21.0", default-features = false, features = ["serde-bincode"] }
+clap = { version = "4.5.47", features = ["derive", "env"] }
+duration-str = { version = "0.17.0", default-features = false, features = ["no_calc", "serde", "time"] }
+form_urlencoded = "1.2.2"
+heed = { version = "0.22.0", default-features = false, features = ["serde-bincode"] }
 password-hash = "0.5.0"
 rand = "0.8.5"
-rpassword = "7.3.1"
-serde = { version = "1.0.217", features = ["derive"] }
+rpassword = "7.4.0"
+serde = { version = "1.0.219", features = ["derive"] }
 subtle = { version = "2.6.1", default-features = false }
-thiserror = "2.0.11"
-time = "0.3.37"
-tokio = { version = "1.42.0", features = ["rt", "macros", "rt-multi-thread"] }
-tower-http = { version = "0.6.2", features = ["trace"] }
+thiserror = "2.0.16"
+time = "0.3.43"
+tokio = { version = "1.47.1", features = ["rt", "macros", "rt-multi-thread"] }
+tower-http = { version = "0.6.6", features = ["trace"] }
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 zeroize = "1.8.1"
 
 [dev-dependencies]
-reqwest = { version = "0.12.12", default-features = false, features = ["cookies", "json"] }
+reqwest = { version = "0.12.23", default-features = false, features = ["cookies", "json"] }
 serial_test = "3.2.0"
-tempfile = "3.16.0"
-tokio = { version = "1.42.0", features = ["time"] }
-tokio-util = { version = "0.7.13", features = ["rt"] }
+tempfile = "3.21.0"
+tokio = { version = "1.47.1", features = ["time"] }
+tokio-util = { version = "0.7.16", features = ["rt"] }
 
 [profile.release]
 codegen-units = 1
